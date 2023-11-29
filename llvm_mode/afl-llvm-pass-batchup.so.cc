@@ -44,8 +44,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#include "llvm/Support/raw_ostream.h"
-
 
 using namespace llvm;
 
@@ -78,8 +76,6 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   IntegerType *Int8Ty  = IntegerType::getInt8Ty(C);
   IntegerType *Int32Ty = IntegerType::getInt32Ty(C);
-  IntegerType *Int64Ty = IntegerType::getInt64Ty(C);
-
 
   /* Show a banner */
 
@@ -115,30 +111,6 @@ bool AFLCoverage::runOnModule(Module &M) {
       M, Int32Ty, false, GlobalValue::ExternalLinkage, 0, "__afl_prev_loc",
       0, GlobalVariable::GeneralDynamicTLSModel, 0, false);
 
-  GlobalVariable *pathString =
-            new GlobalVariable(M, PointerType::get(Int8Ty, 0), false,
-                               GlobalValue::ExternalLinkage, 0, "__path_string_ptr");
-
-  GlobalVariable *pathStringLen = new GlobalVariable(
-            M, Int32Ty, false, GlobalValue::ExternalLinkage, 0, "__path_string_len",
-            0, GlobalVariable::GeneralDynamicTLSModel, 0, false);
-
-
-  Type *retType = Type::getVoidTy(C);
-  std::vector < Type * > paramTypes_5 = {Type::getInt64Ty(C), Type::getInt64Ty(C)};
-  FunctionType *logFuncType_5 = FunctionType::get(retType, paramTypes_5, false);
-  FunctionCallee log_br = (&M)->getOrInsertFunction("log_br", logFuncType_5);
-
-  Type *retType1 = Type::getInt32Ty(C);
-  Type *charPtrType = Type::getInt8PtrTy(C);
-  FunctionType *funcType = FunctionType::get(retType1, charPtrType, false);
-  FunctionCallee strlen_wrapper = (&M)->getOrInsertFunction("strlen_wrapper", funcType);
-
-  Type *retType2 = Type::getInt64Ty(C);
-  Type *charPtrType2 = Type::getInt8PtrTy(C);
-  std::vector<Type*> argTypes2 = {charPtrType2, charPtrType2};
-  FunctionType *funcType2 = FunctionType::get(retType2, argTypes2, true);
-  FunctionCallee sprintf_wrapper = (&M)->getOrInsertFunction("sprintf_wrapper", funcType2);
   /* Instrument all the things! */
 
   int inst_blocks = 0;
@@ -155,7 +127,7 @@ bool AFLCoverage::runOnModule(Module &M) {
 
       unsigned int cur_loc = AFL_R(MAP_SIZE);
 
-      ConstantInt *CurLoc = ConstantInt::get(Int64Ty, cur_loc);
+      ConstantInt *CurLoc = ConstantInt::get(Int32Ty, cur_loc);
 
       /* Load prev_loc */
 
@@ -185,33 +157,6 @@ bool AFLCoverage::runOnModule(Module &M) {
       Store->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
       inst_blocks++;
-
-      /*Set Path*/
-      // init curLoc curLen
-      AllocaInst *curLocBuffer = IRB.CreateAlloca(IntegerType::get(M.getContext(), 8),
-                                                    ConstantInt::get(Int64Ty, 10));
-      Value * arg0[] = {curLocBuffer, IRB.CreateGlobalStringPtr("-%d"), CurLoc};
-      IRB.CreateCall(sprintf_wrapper, arg0);
-
-      Value *src = IRB.CreateBitCast(curLocBuffer, Type::getInt8PtrTy(M.getContext()));
-      Value * arg1[] = {src};
-      CallInst *srcLenCall = IRB.CreateCall(strlen_wrapper, arg1);
-      Value *srcLen = IRB.CreateZExt(srcLenCall, Type::getInt32Ty(C));
-
-        // init Last pathLoc  pathLen
-       LoadInst *pathStringPtr = IRB.CreateLoad(pathString);
-       LoadInst *pathStringLenLoc = IRB.CreateLoad(pathStringLen);
-       Value *len = IRB.CreateZExt(pathStringLenLoc, IRB.getInt32Ty());
-
-        // get total len
-        Value *newLen = IRB.CreateAdd(len, srcLen);
-        Value *pathCopyPtr =IRB.CreateGEP(pathStringPtr, len);
-        IRB.CreateMemCpy(pathCopyPtr,Align(1), src, Align(1), srcLen);
-
-        // pathLen update
-        IRB.CreateStore(newLen, pathStringLen);
-        Value * args[] = {newLen, CurLoc, srcLen, len, src};
-        IRB.CreateCall(log_br, args);
 
     }
 

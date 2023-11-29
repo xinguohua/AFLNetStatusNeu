@@ -29,6 +29,8 @@
 #include "../android-ashmem.h"
 #include "../config.h"
 #include "../types.h"
+#include <stdarg.h>
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,7 +62,12 @@
 u8  __afl_area_initial[MAP_SIZE];
 u8* __afl_area_ptr = __afl_area_initial;
 
+u8  __path_string_initial[MAP_SIZE];
+u8* __path_string_ptr = __path_string_initial;
+
 __thread u32 __afl_prev_loc;
+__thread u32 __path_string_len;
+
 
 
 /* Running in persistent mode? */
@@ -73,6 +80,7 @@ static u8 is_persistent;
 static void __afl_map_shm(void) {
 
   u8 *id_str = getenv(SHM_ENV_VAR);
+  u8 *path_id_str = getenv(PATH_SHM_ENV_VAR);
 
   /* If we're running under AFL, attach to the appropriate region, replacing the
      early-stage __afl_area_initial region that is needed to allow some really
@@ -95,7 +103,14 @@ static void __afl_map_shm(void) {
 
   }
 
-}
+  if (path_id_str) {
+      u32 path_id = atoi(path_id_str);
+      __path_string_ptr = shmat(path_id, NULL, 0);
+      if (__path_string_ptr == (void *) -1) _exit(1);
+      __path_string_ptr[0] = 1;
+  }
+
+  }
 
 
 /* Fork server logic. */
@@ -198,6 +213,10 @@ int __afl_persistent_loop(unsigned int max_cnt) {
       memset(__afl_area_ptr, 0, MAP_SIZE);
       __afl_area_ptr[0] = 1;
       __afl_prev_loc = 0;
+
+      memset(__path_string_ptr, 0, MAP_SIZE);
+      __path_string_ptr[0] = 1;
+      __path_string_len = 0;
     }
 
     cycle_cnt  = max_cnt;
@@ -215,6 +234,9 @@ int __afl_persistent_loop(unsigned int max_cnt) {
       __afl_area_ptr[0] = 1;
       __afl_prev_loc = 0;
 
+      __path_string_ptr[0] = 1;
+      __path_string_len = 0;
+
       return 1;
 
     } else {
@@ -224,6 +246,7 @@ int __afl_persistent_loop(unsigned int max_cnt) {
          dummy output region. */
 
       __afl_area_ptr = __afl_area_initial;
+      __path_string_ptr = __path_string_initial;
 
     }
 
@@ -238,7 +261,7 @@ int __afl_persistent_loop(unsigned int max_cnt) {
     is enabled. */
 
 void __afl_manual_init(void) {
-
+  printf("__afl_manual_init =========\n");
   static u8 init_done;
 
   if (!init_done) {
@@ -311,4 +334,41 @@ void __sanitizer_cov_trace_pc_guard_init(uint32_t* start, uint32_t* stop) {
 
   }
 
+}
+
+
+void log_br(long long int len, long long int loc, long long int srcLen, long long int originLen, char* originSrc){
+    char str[len + 1]; // +1 for the null terminator
+    strncpy(str, (char*)__path_string_ptr, len);
+    str[len] = '\0';  // ensure null termination
+    printf("log_br###current loc %d\n", loc);
+    fprintf(stderr, "log_br###$$$ all len: %d\n", len);
+    fprintf(stderr, "log_br###$$$ all srcLen: %d\n", srcLen);
+    fprintf(stderr, "log_br###$$$ all originLen: %d\n", originLen);
+    printf("log_br###$$$ final path %s\n", str);
+    printf("log_br###$$$ originSrc %s\n", originSrc);
+}
+
+
+int strlen_wrapper(const char *str) {
+    int res = strlen(str);
+    printf("strlen_wrapper###$$$ res %d\n", res);
+    printf("strlen_wrapper###$$$ str %s\n", str);
+
+    return res;
+}
+
+
+int sprintf_wrapper(char *buffer, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    int res = vsprintf(buffer, format, args); // 使用vsprintf处理可变参数
+
+    printf("sprintf_wrapper###$$$ res %d\n", res);
+    printf("sprintf_wrapper###$$$ buffer %s\n", buffer);
+
+    va_end(args);
+
+    return res;
 }

@@ -151,6 +151,7 @@ static s32 forksrv_pid,               /* PID of the fork server           */
            out_dir_fd = -1;           /* FD of the lock file              */
 
 EXP_ST u8* trace_bits;                /* SHM with instrumentation bitmap  */
+EXP_ST u8* path_bits;                 /* PATH with instrumentation bitmap  */
 
 EXP_ST u8  virgin_bits[MAP_SIZE],     /* Regions yet untouched by fuzzing */
            virgin_tmout[MAP_SIZE],    /* Bits we haven't seen in tmouts   */
@@ -159,6 +160,7 @@ EXP_ST u8  virgin_bits[MAP_SIZE],     /* Regions yet untouched by fuzzing */
 static u8  var_bytes[MAP_SIZE];       /* Bytes that appear to be variable */
 
 static s32 shm_id;                    /* ID of the SHM region             */
+static s32 path_id;                    /* ID of the PATH region             */
 
 static volatile u8 stop_soon,         /* Ctrl-C pressed?                  */
                    clear_screen = 1,  /* Window resized?                  */
@@ -239,6 +241,8 @@ static s32 cpu_aff = -1;       	      /* Selected CPU core                */
 #endif /* HAVE_AFFINITY */
 
 static FILE* plot_file;               /* Gnuplot output file              */
+static FILE *path_file;              /* all path File             */
+
 
 struct queue_entry {
 
@@ -2201,6 +2205,8 @@ static void cull_queue(void) {
 EXP_ST void setup_shm(void) {
 
   u8* shm_str;
+  u8* path_str;
+
 
   if (!in_bitmap) memset(virgin_bits, 255, MAP_SIZE);
 
@@ -2211,23 +2217,40 @@ EXP_ST void setup_shm(void) {
 
   if (shm_id < 0) PFATAL("shmget() failed");
 
+  path_id = shmget(IPC_PRIVATE, MAP_SIZE, IPC_CREAT | IPC_EXCL | 0600);
+
+  if (path_id < 0) PFATAL("path_id  get failed");
+
   atexit(remove_shm);
 
   shm_str = alloc_printf("%d", shm_id);
+
+  path_str = alloc_printf("%d", path_id);
+  printf("==path_str============%s====\n", path_str);
 
   /* If somebody is asking us to fuzz instrumented binaries in dumb mode,
      we don't want them to detect instrumentation, since we won't be sending
      fork server commands. This should be replaced with better auto-detection
      later on, perhaps? */
 
-  if (!dumb_mode) setenv(SHM_ENV_VAR, shm_str, 1);
+  if (!dumb_mode){
+      setenv(SHM_ENV_VAR, shm_str, 1);
+      setenv(PATH_SHM_ENV_VAR, path_str, 1);
+      printf("==setenv============%s====\n", path_str);
+  }
 
   ck_free(shm_str);
+  ck_free(path_str);
+
 
   trace_bits = shmat(shm_id, NULL, 0);
-
   if (!trace_bits) PFATAL("shmat() failed");
 
+  path_bits = shmat(path_id, NULL, 0);
+  if (path_bits == (void *)-1) {
+      printf("==error============%d====\n", path_id);
+      PFATAL("shmat() failed");
+    }
 }
 
 
@@ -3163,6 +3186,7 @@ static u8 run_target(char** argv, u32 timeout) {
      territory. */
 
   memset(trace_bits, 0, MAP_SIZE);
+  memset(path_bits, 0, MAP_SIZE); //clear
   MEM_BARRIER();
 
   /* If we're running in "dumb" mode, we can't rely on the fork server
@@ -3248,6 +3272,7 @@ static u8 run_target(char** argv, u32 timeout) {
          falling through. */
 
       *(u32*)trace_bits = EXEC_FAIL_SIG;
+      *(u32*)path_bits = EXEC_FAIL_SIG;
       exit(0);
 
     }
@@ -3323,7 +3348,12 @@ static u8 run_target(char** argv, u32 timeout) {
   MEM_BARRIER();
 
   tb4 = *(u32*)trace_bits;
-
+  if (path_bits != NULL && path_bits[0] != '\0') {
+      printf("path===============%s\n", path_bits);
+        //写入文件
+        fprintf(path_file, "%s\n", path_bits);
+        fflush(path_file);
+  }
 #ifdef WORD_SIZE_64
   classify_counts((u64*)trace_bits);
 #else
@@ -7981,8 +8011,8 @@ EXP_ST void check_binary(u8* fname) {
   }
 
   if (memmem(f_data, f_len, DEFER_SIG, strlen(DEFER_SIG) + 1)) {
-
-    OKF(cPIN "Deferred forkserver binary detected.");
+      printf("delay===================");
+      OKF(cPIN "Deferred forkserver binary detected.");
     setenv(DEFER_ENV_VAR, "1", 1);
     deferred_mode = 1;
 
@@ -8262,6 +8292,15 @@ EXP_ST void setup_dirs_fds(void) {
                      "unique_hangs, max_depth, execs_per_sec\n");
                      /* ignore errors */
 
+
+    /*path output file*/
+    tmp = alloc_printf("%s/path_data", out_dir);
+    remove(tmp);
+    fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd <0) PFATAL("Unable to create '%s'", tmp);
+    ck_free(tmp);
+    path_file = fdopen(fd, "w");
+    if (!path_file) PFATAL("fdopen() failed");
 }
 
 
@@ -9412,6 +9451,7 @@ stop_fuzzing:
   }
 
   fclose(plot_file);
+  fclose(path_file);
   destroy_queue();
   destroy_extras();
   ck_free(target_path);
