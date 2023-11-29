@@ -3351,8 +3351,8 @@ static u8 run_target(char** argv, u32 timeout) {
   if (path_bits != NULL && path_bits[0] != '\0') {
       printf("path===============%s\n", path_bits);
         //写入文件
-        fprintf(path_file, "%s\n", path_bits);
-        fflush(path_file);
+      fprintf(path_file, "%s\n", path_bits);
+      fflush(path_file);
   }
 #ifdef WORD_SIZE_64
   classify_counts((u64*)trace_bits);

@@ -186,33 +186,32 @@ bool AFLCoverage::runOnModule(Module &M) {
 
       inst_blocks++;
 
-      /*Set Path*/
-      // init curLoc curLen
-      AllocaInst *curLocBuffer = IRB.CreateAlloca(IntegerType::get(M.getContext(), 8),
+        /*Set Path*/
+        // init curLoc curLen
+        AllocaInst *curLocBuffer = IRB.CreateAlloca(IntegerType::get(M.getContext(), 8),
                                                     ConstantInt::get(Int64Ty, 10));
-      Value * arg0[] = {curLocBuffer, IRB.CreateGlobalStringPtr("-%d"), CurLoc};
-      IRB.CreateCall(sprintf_wrapper, arg0);
+        Value *arg0[] = {curLocBuffer, IRB.CreateGlobalStringPtr("-%d"), CurLoc};
+        IRB.CreateCall(sprintf_wrapper, arg0);
 
-      Value *src = IRB.CreateBitCast(curLocBuffer, Type::getInt8PtrTy(M.getContext()));
-      Value * arg1[] = {src};
-      CallInst *srcLenCall = IRB.CreateCall(strlen_wrapper, arg1);
-      Value *srcLen = IRB.CreateZExt(srcLenCall, Type::getInt32Ty(C));
+        Value *src = IRB.CreateBitCast(curLocBuffer, Type::getInt8PtrTy(M.getContext()));
+        Value *arg1[] = {src};
+        CallInst *srcLenCall = IRB.CreateCall(strlen_wrapper, arg1);
+        Value *srcLen = IRB.CreateZExt(srcLenCall, Type::getInt32Ty(C));
 
         // init Last pathLoc  pathLen
-       LoadInst *pathStringPtr = IRB.CreateLoad(pathString);
-       LoadInst *pathStringLenLoc = IRB.CreateLoad(pathStringLen);
-       Value *len = IRB.CreateZExt(pathStringLenLoc, IRB.getInt32Ty());
+        LoadInst *pathStringPtr = IRB.CreateLoad(pathString);
+        LoadInst *pathStringLenLoc = IRB.CreateLoad(pathStringLen);
+        Value *len = IRB.CreateZExt(pathStringLenLoc, IRB.getInt32Ty());
 
         // get total len
         Value *newLen = IRB.CreateAdd(len, srcLen);
-        Value *pathCopyPtr =IRB.CreateGEP(pathStringPtr, len);
-        IRB.CreateMemCpy(pathCopyPtr,Align(1), src, Align(1), srcLen);
+        Value *pathCopyPtr = IRB.CreateGEP(pathStringPtr, len);
+        IRB.CreateMemCpy(pathCopyPtr, Align(1), src, Align(1), srcLen);
 
         // pathLen update
         IRB.CreateStore(newLen, pathStringLen);
-        Value * args[] = {newLen, CurLoc, srcLen, len, src};
+        Value *args[] = {newLen, CurLoc, srcLen, len, src};
         IRB.CreateCall(log_br, args);
-
     }
 
   /* Say something nice. */
