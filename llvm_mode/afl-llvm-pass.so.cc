@@ -127,7 +127,7 @@ bool AFLCoverage::runOnModule(Module &M) {
   Type *retType = Type::getVoidTy(C);
   std::vector < Type * > paramTypes_5 = {Type::getInt64Ty(C), Type::getInt64Ty(C)};
   FunctionType *logFuncType_5 = FunctionType::get(retType, paramTypes_5, false);
-  FunctionCallee log_br = (&M)->getOrInsertFunction(":q", logFuncType_5);
+  FunctionCallee log_br = (&M)->getOrInsertFunction("log_br", logFuncType_5);
 
   Type *retType1 = Type::getInt32Ty(C);
   Type *charPtrType = Type::getInt8PtrTy(C);

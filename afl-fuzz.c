@@ -3349,7 +3349,7 @@ static u8 run_target(char** argv, u32 timeout) {
 
   tb4 = *(u32*)trace_bits;
   if (path_bits != NULL && path_bits[0] != '\0') {
-      printf("path===============%s\n", path_bits);
+      printf("path===============%s======end\n", path_bits);
         //写入文件
       fprintf(path_file, "%s\n", path_bits);
       fflush(path_file);
