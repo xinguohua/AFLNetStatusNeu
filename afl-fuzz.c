@@ -69,6 +69,7 @@
 #include <sys/capability.h>
 
 #include "aflnet.h"
+#include "staflnet.h"      //my change
 #include <graphviz/gvc.h>
 #include <math.h>
 
@@ -401,10 +402,20 @@ u8 false_negative_reduction = 0;
 Agraph_t  *ipsm;
 static FILE* ipsm_dot_file;
 
+//my change
+/* Implemented state machine */
+Agraph_t  *ippsm;
+static FILE* ippsm_dot_file;
+
 /* Hash table/map and list */
 klist_t(lms) *kl_messages;
 khash_t(hs32) *khs_ipsm_paths;
 khash_t(hms) *khms_states;
+//my change
+khash_t(phs32) *khs_ippsm_paths;
+khash_t(phms) *khms_path_states;
+khash_t(s2path) *status_path_states;
+
 
 //M2_prev points to the last message of M1 (i.e., prefix)
 //If M1 is empty, M2_prev == NULL
@@ -428,6 +439,21 @@ void setup_ipsm()
 
   khms_states = kh_init(hms);
 }
+//my change
+/* Initialize the implemented protocol path-state machine as a graphviz graph */
+void setup_ippsm()
+{
+    ippsm = agopen("path-g", Agdirected, 0);
+
+    agattr(ippsm, AGNODE, "color", "black"); //Default node colr is black
+    agattr(ippsm, AGEDGE, "color", "black"); //Default edge color is black
+
+    khs_ippsm_paths = kh_init(phs32);
+
+    khms_path_states = kh_init(phms);
+
+    status_path_states = kh_init(s2path);
+}
 
 /* Free memory allocated to state-machine variables */
 void destroy_ipsm()
@@ -441,6 +467,22 @@ void destroy_ipsm()
   kh_destroy(hms, khms_states);
 
   ck_free(state_ids);
+}
+
+//my change
+/* Free memory allocated to path-state-machine variables */
+void destroy_ippsm()
+{
+    agclose(ippsm);
+
+    kh_destroy(phs32, khs_ippsm_paths);
+
+    path_state_info_t *path_state;
+    kh_foreach_value(khms_path_states, path_state, {ck_free(path_state->seeds); ck_free(path_state);});
+    kh_destroy(phms, khms_path_states);
+    kh_destroy(s2path, status_path_states);
+
+    ck_free(state_ids);
 }
 
 /* Get state index in the state IDs list, given a state ID */
@@ -591,6 +633,7 @@ void update_fuzzs() {
         kh_val(khms_states, k)->fuzzs++;
       }
     }
+    //my change 插入路径状态并将路径状态与状态码相关联
   }
   ck_free(state_sequence);
   kh_destroy(hs32, khs_state_ids);
@@ -9252,6 +9295,7 @@ int main(int argc, char** argv) {
   init_count_class16();
 
   setup_ipsm();
+  setup_ippsm();//my change
 
   setup_dirs_fds();
   read_testcases();
@@ -9458,6 +9502,7 @@ stop_fuzzing:
   ck_free(sync_id);
 
   destroy_ipsm();
+  destroy_ippsm();//my change
 
   alloc_report();
 
