@@ -41,7 +41,7 @@ KHASH_SET_INIT_INT(phs32)
 KHASH_INIT(s2path,khint32_t,khint32_t *, 1, kh_int_hash_func, kh_int_hash_equal)
 
 //获取unsigned int *的长度
-extern int array_length(unsigned int *point);
+//u32 array_length(u8 *point);
 
 //获取两个整数数组之间的编辑距离
 extern int Levenshtein_distance(unsigned int *point1, unsigned int *point2);

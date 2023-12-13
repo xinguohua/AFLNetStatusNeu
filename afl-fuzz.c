@@ -369,6 +369,7 @@ int response_buf_size = 0; //the size of the whole response buffer
 u32 *response_bytes = NULL; //an array keeping accumulated response buffer size
                             //e.g., response_bytes[i] keeps the response buffer size
                             //once messages 0->i have been received and processed by the SUT
+u32 *path_bytes = NULL;
 u32 max_annotated_regions = 0;
 u32 target_state_id = 0;
 u32 *state_ids = NULL;
@@ -1030,6 +1031,17 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
   if (state_sequence) ck_free(state_sequence);
 }
 
+static u32 array_length(u8 *point) {
+    u32 len = 0;
+    u8 *p = point;
+    while (*p) {
+        p++;
+        len++;
+    }
+    printf("len=========%d\n", len);
+    return len;
+}
+
 /* Send (mutated) messages in order to the server under test */
 int send_over_network()
 {
@@ -1054,6 +1066,11 @@ int send_over_network()
   if (response_bytes) {
     ck_free(response_bytes);
     response_bytes = NULL;
+  }
+
+  if(path_bytes){
+      ck_free(path_bytes);
+      path_bytes = NULL;
   }
 
   //Create a TCP/UDP socket
@@ -1113,14 +1130,22 @@ int send_over_network()
   //write the request messages
   kliter_t(lms) *it;
   messages_sent = 0;
-
+  u32 lastMessageLength = 0;
   for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
     n = net_send(sockfd, timeout, kl_val(it)->mdata, kl_val(it)->msize);
     messages_sent++;
 
     //Allocate memory to store new accumulated response buffer size
     response_bytes = (u32 *) ck_realloc(response_bytes, messages_sent * sizeof(u32));
+    path_bytes = (u32 *) ck_realloc(path_bytes, messages_sent * sizeof(u32));
 
+
+    if (messages_sent > 0 && path_bytes != NULL) {
+          path_bytes[messages_sent - 1] = array_length(path_bits) - lastMessageLength;
+          printf("========index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
+          printf("path====%s\n",path_bits);
+          lastMessageLength = array_length(path_bits);
+    }
     //Jump out if something wrong leading to incomplete message sent
     if (n != kl_val(it)->msize) {
       goto HANDLE_RESPONSES;

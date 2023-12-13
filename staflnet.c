@@ -7,15 +7,15 @@
 #define MIN3(a,b,c) ((a)<(b)?((a)<(c)?(a):(c)):((b)<(c)?(b):(c)))
 
 //获取unsigned int *的长度
-extern int array_length(unsigned int *point) {
-    u32 len = 0;
-    unsigned int *p = point;
-    while (*p) {
-        p++;
-        len++;
-    }
-    return len;
-}
+//u32 array_length(u8 *point) {
+//    u32 len = 0;
+//    u8 *p = point;
+//    while (*p) {
+//        p++;
+//        len++;
+//    }
+//    return len;
+//}
 
 //获取两个整数数组之间的编辑距离
 extern int Levenshtein_distance(unsigned int *point1, unsigned int *point2) {
