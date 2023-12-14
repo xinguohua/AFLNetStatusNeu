@@ -61,6 +61,7 @@
    "-DBIN_PATH=\"/usr/local/bin\"",
    "afl-fuzz.c",
    "aflnet.o",
+   "staflnet.o",
    "-o",
    "afl-fuzz",
    "-ldl",
@@ -87,6 +88,7 @@
    "-DBIN_PATH=\"/usr/local/bin\"",
    "afl-replay.c",
    "aflnet.o",
+   "staflnet.o",
    "-o",
    "afl-replay",
    "-ldl",
@@ -113,6 +115,7 @@
    "-DBIN_PATH=\"/usr/local/bin\"",
    "aflnet-replay.c",
    "aflnet.o",
+   "staflnet.o",
    "-o",
    "aflnet-replay",
    "-ldl",
@@ -272,5 +275,26 @@
    "-lcap"
   ],
   "file": "test-instr.c"
+ },
+ {
+  "directory": "/home/nsas2020/fuzz/AFLNetStatusNeu",
+  "arguments": [
+   "cc",
+   "-O3",
+   "-funroll-loops",
+   "-Wall",
+   "-D_FORTIFY_SOURCE=2",
+   "-g",
+   "-Wno-pointer-sign",
+   "-Wno-unused-result",
+   "-DAFL_PATH=\"/usr/local/lib/afl\"",
+   "-DDOC_PATH=\"/usr/local/share/doc/afl\"",
+   "-DBIN_PATH=\"/usr/local/bin\"",
+   "-c",
+   "-o",
+   "staflnet.o",
+   "staflnet.c"
+  ],
+  "file": "staflnet.c"
  }
 ]
