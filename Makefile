@@ -69,14 +69,14 @@ afl-as: afl-as.c afl-as.h $(COMM_HDR) | test_x86
 	$(CC) $(CFLAGS) $@.c -o $@ $(LDFLAGS)
 	ln -sf afl-as as
 
-afl-fuzz: afl-fuzz.c $(COMM_HDR) aflnet.o aflnet.h | test_x86
-	$(CC) $(CFLAGS) $@.c aflnet.o -o $@ $(LDFLAGS)
+afl-fuzz: afl-fuzz.c $(COMM_HDR) aflnet.o staflnet.o aflnet.h staflnet.h | test_x86
+	$(CC) $(CFLAGS) $@.c aflnet.o staflnet.o -o $@ $(LDFLAGS)
 
-afl-replay: afl-replay.c $(COMM_HDR) aflnet.o aflnet.h | test_x86
-	$(CC) $(CFLAGS) $@.c aflnet.o -o $@ $(LDFLAGS)
+afl-replay: afl-replay.c $(COMM_HDR) aflnet.o staflnet.o aflnet.h staflnet.h | test_x86
+	$(CC) $(CFLAGS) $@.c aflnet.o staflnet.o -o $@ $(LDFLAGS)
 
-aflnet-replay: aflnet-replay.c $(COMM_HDR) aflnet.o aflnet.h | test_x86
-	$(CC) $(CFLAGS) $@.c aflnet.o -o $@ $(LDFLAGS)
+aflnet-replay: aflnet-replay.c $(COMM_HDR) aflnet.o staflnet.o aflnet.h staflnet.h | test_x86
+	$(CC) $(CFLAGS) $@.c aflnet.o staflnet.o -o $@ $(LDFLAGS)
 
 afl-showmap: afl-showmap.c $(COMM_HDR) | test_x86
 	$(CC) $(CFLAGS) $@.c -o $@ $(LDFLAGS)

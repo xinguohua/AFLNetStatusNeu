@@ -7,6 +7,7 @@
 
 #endif //AFLNETSTATUSNEU_STAFLNET_H
 
+#include <stdio.h>
 #include "klist.h"
 #include "khash.h"
 #include "types.h"
@@ -17,10 +18,10 @@ typedef struct {
     u32 id;                     /* state id */
     u32 R;                      /*聚类半径*/
     u32 avg_distance;           /*当前核心点至其他点的中心*/
-    unsigned int *core;         /*以一个整数数组表示该状态的核心点*/
+    u8 *core;         /*以一个整数数组表示该状态的核心点*/
     u8 is_covered;              /* has this state been covered */
-    u32 paths;                  /* total number of paths exercising this state */
-    u32 paths_discovered;       /* total number of new paths that have been discovered when this state is targeted/selected */
+    //u32 paths;                  /* total number of paths exercising this state */
+    //u32 paths_discovered;       /* total number of new paths that have been discovered when this state is targeted/selected */
     u32 selected_times;         /* total number of times this state has been targeted/selected */
     u32 fuzzs;                  /* Total number of fuzzs (i.e., inputs generated) */
     u32 score;                  /* current score of the state */
@@ -41,12 +42,22 @@ KHASH_SET_INIT_INT(phs32)
 KHASH_INIT(s2path,khint32_t,khint32_t *, 1, kh_int_hash_func, kh_int_hash_equal)
 
 //获取unsigned int *的长度
-//u32 array_length(u8 *point);
+u32 path_length(u8 *point);
+
+//从path_bits中提取路径状态序列，path_count即为message_sent
+extern u8 **extract_paths(u8 *path_bits, u32 *path_bytes, u32 path_count);
+// 释放paths动态分配的内存
+extern void free_paths(u8 **paths, u32 path_count);
 
 //获取两个整数数组之间的编辑距离
-extern int Levenshtein_distance(unsigned int *point1, unsigned int *point2);
+extern u32 Levenshtein_distance(u8 *point1, u8 *point2);
 
-extern int Exist_in_prev_one(path_state_info_t *path_state, unsigned int *new_path);
+extern int Exist_in_prev_one(path_state_info_t *path_state, u8 *new_path);
+
+
+
+//新建一个路径状态，插入ippsm，并更新各种变量
+void Create_path_state(state_info_t *state,unsigned int *new_path);
 
 
 

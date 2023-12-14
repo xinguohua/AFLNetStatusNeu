@@ -578,6 +578,22 @@ void update_region_annotations(struct queue_entry* q)
       q->regions[i].state_count = state_count;
     }
   }
+  // my change 将state与path对应起来
+    u8 **paths = extract_paths(path_bits, path_bytes, messages_sent);
+
+    for (i = 0; i < messages_sent; i++) {
+        if (path_bytes[i] == 0 ) {
+            q->regions[i].path_sequence = NULL;
+            q->regions[i].path_block_count = 0;
+        } else {
+            unsigned int path_count;
+            q->regions[i].path_sequence = paths[i];
+            q->regions[i].path_block_count = path_bytes[i];
+        }
+    }
+
+    // 释放动态分配的路径内存
+    free_paths(paths, messages_sent);
 }
 
 /* Choose a region data for region-level mutations */
@@ -639,6 +655,52 @@ void update_fuzzs() {
   ck_free(state_sequence);
   kh_destroy(hs32, khs_state_ids);
 }
+
+/* Update #fuzzs visiting a specific state */
+void update_path_state_fuzzs() {
+    unsigned int state_count, i, discard;
+    unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
+
+    //A hash set is used so that the #paths is not updated more than once for one specific state
+    khash_t(hs32) *khs_path_state_ids;
+    khint_t k;
+    khs_path_state_ids = kh_init(hs32);
+
+    u8 **paths = extract_paths(path_bits, path_bytes, messages_sent);
+    for(i = 0; i < messages_sent; i++) {
+        unsigned int state_id;
+        if ((response_bytes[i] == 0) || (i > 0 && (response_bytes[i] - response_bytes[i - 1] == 0))) {
+            state_id = state_sequence[i];
+        } else {
+            state_id = 0;
+        }
+
+        if (kh_get(s2path, status_path_states, state_id) != kh_end(status_path_states)) {
+            khint32_t *value = kh_val(status_path_states, state_id);
+            u32 j = 0;
+            while (value[j]) {
+                path_state_info_t *path_state = kh_val(khms_path_states, value[j]);
+                if (Exist_in_prev_one(path_state, paths[j])) {
+                    if (kh_get(hs32, khs_path_state_ids, path_state->id) != kh_end(khs_path_state_ids)) {
+                        continue;
+                    } else {
+                        kh_put(hs32, khs_path_state_ids, path_state->id, &discard);
+                        path_state->fuzzs++;
+                        break;
+                    }
+                }
+                j++;
+                //如果找不到的话，需要新建路径状态吗？需要确保该函数在路径状态聚类函数之后执行吗？
+            }
+
+        }
+    }
+    ck_free(state_sequence);
+    kh_destroy(hs32, khs_path_state_ids);
+    free_paths(paths,messages_sent);
+}
+
+
 
 /* Return the index of the "region" containing a given value */
 u32 index_search(u32 *A, u32 n, u32 val) {
@@ -5582,7 +5644,10 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
   fault = run_target(argv, exec_tmout);
 
   //Update fuzz count, no matter whether the generated test is interesting or not
-  if (state_aware_mode) update_fuzzs();
+  if (state_aware_mode) {
+      update_fuzzs();
+      update_path_state_fuzzs();
+  }
 
   if (stop_soon) return 1;
 
@@ -9369,7 +9434,7 @@ int main(int argc, char** argv) {
   if (state_aware_mode) {
 
     if (state_ids_count == 0) {
-      PFATAL("No server states have been detected. Server responses are likely empty!");
+     // PFATAL("No server states have been detected. Server responses are likely empty!");
     }
 
     while (1) {

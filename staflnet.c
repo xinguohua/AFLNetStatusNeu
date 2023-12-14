@@ -6,21 +6,56 @@
 
 #define MIN3(a,b,c) ((a)<(b)?((a)<(c)?(a):(c)):((b)<(c)?(b):(c)))
 
+
+
+//从path_bits中提取路径状态序列
+u8 **extract_paths(u8 *path_bits, u32 *path_bytes, u32 path_count) {
+    u8 **paths = NULL;
+    u32 index = 0;
+
+    for (u32 i = 0; i < path_count; i++) {
+        if (path_bytes[i]) {
+            u8 *path = malloc(path_bytes[i] * sizeof(u8));
+
+            for (u32 j = 0; j < path_bytes[i]; j++) {
+                path[j] = path_bits[j + index];
+            }
+
+            paths = realloc(paths, (i + 1) * sizeof(u8 *));
+            paths[i] = path;
+
+            index += path_bytes[i];
+        }
+    }
+
+    return paths;
+}
+// 释放动态分配的内存
+void free_paths(u8 **paths, u32 path_count) {
+    for (u32 i = 0; i < path_count; i++) {
+        free(paths[i]);
+    }
+    free(paths);
+}
+
+
 //获取unsigned int *的长度
-//u32 array_length(u8 *point) {
-//    u32 len = 0;
-//    u8 *p = point;
-//    while (*p) {
-//        p++;
-//        len++;
-//    }
-//    return len;
-//}
+u32 path_length(u8 *point) {
+    u32 len = 0;
+    u8 *p = point;
+    while (*p) {
+        p++;
+        len++;
+    }
+    return len;
+}
+
+
 
 //获取两个整数数组之间的编辑距离
-extern int Levenshtein_distance(unsigned int *point1, unsigned int *point2) {
-    u32 len1 = array_length(point1);
-    u32 len2 = array_length(point2);
+extern u32 Levenshtein_distance(u8 *point1, u8 *point2) {
+    u32 len1 = path_length(point1);
+    u32 len2 = path_length(point2);
     u32 res=0;
 
     u32 dp[len1][len2];
@@ -44,7 +79,7 @@ extern int Levenshtein_distance(unsigned int *point1, unsigned int *point2) {
     return res;
 }
 
-extern int Exist_in_prev_one(path_state_info_t *path_state, unsigned int *new_path){
+extern int Exist_in_prev_one(path_state_info_t *path_state, u8 *new_path){
     int distance= Levenshtein_distance(path_state->core,new_path);
     int isExist=0;
     if(distance<=path_state->R){
@@ -52,7 +87,6 @@ extern int Exist_in_prev_one(path_state_info_t *path_state, unsigned int *new_pa
     }
     //将新的路径聚类至当前状态
     //更新该状态的各个变量
-
 
     //返回是否聚类至当前状态
     return isExist;
