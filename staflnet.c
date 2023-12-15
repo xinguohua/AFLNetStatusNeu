@@ -44,12 +44,12 @@ u32 path_length(u8 *point) {
     u32 len = 0;
     u8 *p = point;
     while (*p) {
+        printf("path[%u]: %c\n", len, *p);
         p++;
         len++;
     }
     return len;
 }
-
 
 
 //获取两个整数数组之间的编辑距离
@@ -80,16 +80,26 @@ extern u32 Levenshtein_distance(u8 *point1, u8 *point2) {
 }
 
 extern int Exist_in_prev_one(path_state_info_t *path_state, u8 *new_path){
-    int distance= Levenshtein_distance(path_state->core,new_path);
+    u32 j=0;
     int isExist=0;
+    //if(path_state->R == new_path) isExist=1;
+    int distance= Levenshtein_distance(path_state->core,new_path);
+
+    if(distance)
     if(distance<=path_state->R){
         isExist=1;
     }
     //将新的路径聚类至当前状态
     //更新该状态的各个变量
 
+
+
     //返回是否聚类至当前状态
     return isExist;
+}
+
+extern int GetPathStateIdInPrev(state_info_t *state,u8 *ToFindPath){
+
 }
 
 /*

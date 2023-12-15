@@ -18,7 +18,7 @@ typedef struct {
     u32 id;                     /* state id */
     u32 R;                      /*聚类半径*/
     u32 avg_distance;           /*当前核心点至其他点的中心*/
-    u8 *core;         /*以一个整数数组表示该状态的核心点*/
+    u8 *core;                   /*以一个整数数组表示该状态的核心点*/
     u8 is_covered;              /* has this state been covered */
     //u32 paths;                  /* total number of paths exercising this state */
     //u32 paths_discovered;       /* total number of new paths that have been discovered when this state is targeted/selected */
@@ -54,7 +54,7 @@ extern u32 Levenshtein_distance(u8 *point1, u8 *point2);
 
 extern int Exist_in_prev_one(path_state_info_t *path_state, u8 *new_path);
 
-
+extern int GetPathStateIdInPrev(state_info_t *state,u8 *ToFindPath);
 
 //新建一个路径状态，插入ippsm，并更新各种变量
 void Create_path_state(state_info_t *state,unsigned int *new_path);
