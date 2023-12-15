@@ -680,7 +680,7 @@ void update_path_state_fuzzs() {
             u32 j = 0;
             while (value[j]) {
                 path_state_info_t *path_state = kh_val(khms_path_states, value[j]);
-                if (Exist_in_prev_one(path_state, paths[j])) {
+                if (Exist_in_prev_one(path_state, paths[i])) {
                     if (kh_get(hs32, khs_path_state_ids, path_state->id) != kh_end(khs_path_state_ids)) {
                         continue;
                     } else {
