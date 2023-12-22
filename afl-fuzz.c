@@ -152,7 +152,7 @@ static s32 forksrv_pid,               /* PID of the fork server           */
            out_dir_fd = -1;           /* FD of the lock file              */
 
 EXP_ST u8* trace_bits;                /* SHM with instrumentation bitmap  */
-EXP_ST u8* path_bits;                 /* PATH with instrumentation bitmap  */
+EXP_ST u32* path_bits;                 /* PATH with instrumentation bitmap  */
 
 EXP_ST u8  virgin_bits[MAP_SIZE],     /* Regions yet untouched by fuzzing */
            virgin_tmout[MAP_SIZE],    /* Bits we haven't seen in tmouts   */
@@ -359,9 +359,9 @@ static inline u8 has_new_bits(u8* virgin_map);
 
 /* AFLNet-specific variables & functions */
 
-u32 server_wait_usecs = 10000;
+u32 server_wait_usecs = 100000000;//10000 my change
 u32 poll_wait_msecs = 1;
-u32 socket_timeout_usecs = 1000;
+u32 socket_timeout_usecs = 100000000;//1000 my change
 u8 net_protocol;
 u8* net_ip;
 u32 net_port;
@@ -584,16 +584,15 @@ void update_region_annotations(struct queue_entry* q)
     }
   }
   // my change 将state与path对应起来
-    u8 **paths = extract_paths(path_bits, path_bytes, messages_sent);
+    u32 **paths = extract_paths(path_bits, path_bytes, messages_sent);
 
     for (i = 0; i < messages_sent; i++) {
         if (path_bytes[i] == 0 ) {
             q->regions[i].path_sequence = NULL;
             q->regions[i].path_block_count = 0;
         } else {
-            unsigned int path_count;
             q->regions[i].path_sequence = paths[i];
-            q->regions[i].path_block_count = path_bytes[i];
+            q->regions[i].path_block_count = (i == 0 ? path_bytes[i] : path_bytes[i] - path_bytes[i - 1]);
         }
     }
 
@@ -661,54 +660,6 @@ void update_fuzzs() {
   kh_destroy(hs32, khs_state_ids);
 }
 
-/* Update #fuzzs visiting a specific state */
-void update_path_state_fuzzs() {
-    unsigned int state_count, i, discard;
-    //unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
-
-    //A hash set is used so that the #paths is not updated more than once for one specific state
-    khash_t(hs32) *khs_path_state_ids;
-    khint_t k;
-    khs_path_state_ids = kh_init(hs32);
-
-    u8 **paths = extract_paths(path_bits, path_bytes, messages_sent);
-    u32 state_cur_num=0;
-    for(i = 0; i < messages_sent; i++) {
-        unsigned int state_id;
-        if ((response_bytes[i] == 0) || (i > 0 && (response_bytes[i] - response_bytes[i - 1] == 0))) {
-            //若没有返回状态码，则状态码为0
-            state_id = 0;
-        } else {
-            //state_cur_sequence为从第0到i个消息拿到的所有的状态码序列，所以要取最后一个状态码
-            unsigned int *state_cur_sequence = (*extract_response_codes)(response_buf, response_bytes[i], &state_cur_num);
-            state_id = state_cur_sequence[state_cur_num-1];
-            ck_free(state_cur_sequence);
-        }
-
-        if (kh_get(s2path, status_path_states, state_id) != kh_end(status_path_states)) {
-            khint32_t *value = kh_val(status_path_states, state_id);
-            u32 j = 0;
-            while (value[j]) {
-                path_state_info_t *path_state = kh_val(khms_path_states, value[j]);
-                if (Exist_in_prev_one(path_state, paths[i])) {
-                    if (kh_get(hs32, khs_path_state_ids, path_state->id) != kh_end(khs_path_state_ids)) {
-                        continue;
-                    } else {
-                        kh_put(hs32, khs_path_state_ids, path_state->id, &discard);
-                        path_state->fuzzs++;
-                        break;
-                    }
-                }
-                j++;
-                //如果找不到的话，需要新建路径状态吗？需要确保该函数在路径状态聚类函数之后执行吗？
-            }
-        }
-    }
-    //ck_free(state_sequence);
-    kh_destroy(hs32, khs_path_state_ids);
-    free_paths(paths,messages_sent);
-}
-
 
 
 /* Return the index of the "region" containing a given value */
@@ -762,6 +713,54 @@ u32 update_scores_and_select_next_state(u8 mode) {
   return result;
 }
 
+u32 update_scores_and_select_next_path_state(u8 mode){
+
+    u32 next_state_id= update_scores_and_select_next_state(mode);
+    u32 *path_state_scores = NULL;
+    u32 path_state_num=0;
+    path_state_scores = (u32 *)ck_alloc(state_ids_count * sizeof(u32));
+
+    if(kh_get(s2path,status_path_states,next_state_id)!= kh_end(status_path_states)){
+        u32 *value= kh_val(status_path_states,next_state_id);
+        while(value[path_state_num]) {
+            path_state_num++;
+        }
+        //path_state_scores = (u32 *)ck_alloc(path_state_num * sizeof(u32));
+
+        khint_t k;
+        path_state_info_t *pstate;
+        //维护一个最小值和id
+        u32 result=UINT32_MAX;
+        u32 min_id;
+
+        //Update the path_states' score
+        for(u32 i = 0; i < path_state_num; i++) {
+            u32 pstate_id = value[i];
+
+            k = kh_get(hms, khms_path_states, pstate_id);
+            if (k != kh_end(khms_path_states)) {
+                pstate = kh_val(khms_path_states, k);
+                switch(mode) {
+                    case FAVOR:
+                        pstate->score = ceil(1000 * pow(2, -log10(log10(pstate->fuzzs + 1) * pstate->selected_times + 1)));
+                        break;
+                        //other cases are reserved
+                }
+                if(pstate->score <= result) {
+                    result=pstate->score;
+                    min_id=pstate_id;
+                }
+                //path_state_scores[i] = pstate->score;
+            }
+        }
+        if(min_id) return min_id;
+    }
+    else{
+        return 0;
+    }
+
+}
+
 /* Select a target state at which we do state-aware fuzzing */
 unsigned int choose_target_state(u8 mode) {
   u32 result = 0;
@@ -788,7 +787,8 @@ unsigned int choose_target_state(u8 mode) {
         break;
       }
 
-      result = update_scores_and_select_next_state(FAVOR);
+      //result = update_scores_and_select_next_state(FAVOR);
+      result= update_scores_and_select_next_path_state(FAVOR);//替换掉上面的
       break;
     default:
       break;
@@ -874,6 +874,75 @@ struct queue_entry *choose_seed(u32 target_state_id, u8 mode)
   }
 
   return result;
+}
+/* Select a seed to exercise the target path state */
+struct queue_entry *choose_path_seed(u32 target_state_id, u8 mode)
+{
+    khint_t k;
+    path_state_info_t *pstate;
+    struct queue_entry *result = NULL;
+
+    k = kh_get(hms, khms_path_states, target_state_id);
+    if (k != kh_end(khms_path_states)) {
+        pstate = kh_val(khms_path_states, k);
+
+        if (pstate->seeds_count == 0) return NULL;
+
+        switch (mode) {
+            case FAVOR:
+                if (pstate->seeds_count > 10) {
+                    //Do seed selection similar to AFL + take into account state-aware information
+                    //e.g., was_fuzzed information becomes state-aware
+                    u32 passed_cycles = 0;
+                    while (passed_cycles < 5) {
+                        result = pstate->seeds[pstate->selected_seed_index];
+                        if (pstate->selected_seed_index + 1 == pstate->seeds_count) {
+                            pstate->selected_seed_index = 0;
+                            passed_cycles++;
+                        } else pstate->selected_seed_index++;
+
+                        //Skip this seed with high probability if it is neither an initial seed nor a seed generated while the
+                        //current target_state_id was targeted
+                        if (result->generating_state_id != target_state_id && !result->is_initial_seed && UR(100) < 90) continue;
+
+                        u32 target_state_index = get_state_index(target_state_id);
+                        if (pending_favored) {
+                            /* If we have any favored, non-fuzzed new arrivals in the queue,
+                               possibly skip to them at the expense of already-fuzzed or non-favored
+                               cases. */
+                            if (((was_fuzzed_map[target_state_index][result->index] == 1) || !result->favored) && UR(100) < SKIP_TO_NEW_PROB) continue;
+
+                            /* Otherwise, this seed is selected */
+                            break;
+                        } else if (!result->favored && queued_paths > 10) {
+                            /* Otherwise, still possibly skip non-favored cases, albeit less often.
+                               The odds of skipping stuff are higher for already-fuzzed inputs and
+                               lower for never-fuzzed entries. */
+                            if (queue_cycle > 1 && (was_fuzzed_map[target_state_index][result->index] == 0)) {
+                                if (UR(100) < SKIP_NFAV_NEW_PROB) continue;
+                            } else {
+                                if (UR(100) < SKIP_NFAV_OLD_PROB) continue;
+                            }
+
+                            /* Otherwise, this seed is selected */
+                            break;
+                        }
+                    }
+                } else {
+                    //Do Round-robin if seeds_count of the selected state is small
+                    result = pstate->seeds[pstate->selected_seed_index];
+                    pstate->selected_seed_index++;
+                    if (pstate->selected_seed_index == pstate->seeds_count) pstate->selected_seed_index = 0;
+                }
+                break;
+            default:
+                break;
+        }
+    } else {
+        PFATAL("AFLNet - the states hashtable has no entries for state %d", target_state_id);
+    }
+
+    return result;
 }
 
 /* Update state-aware variables */
@@ -1111,7 +1180,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
     unsigned int state_count, i, discard;
     //unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
 
-    u8 **paths = extract_paths(path_bits, path_bytes, messages_sent);
+    u32 **paths = extract_paths(path_bits, path_bytes, messages_sent);
     u32 state_cur_num=0;
     unsigned int *state_codes= malloc(messages_sent * sizeof (unsigned int));//存储每个路径对应的状态码id，大小为messages_sent
     /*获得所有的状态码id，数量为messages_sent，存储在state_codes中*/
@@ -1120,6 +1189,11 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
         if ((response_bytes[i] == 0) || (i > 0 && (response_bytes[i] - response_bytes[i - 1] == 0))) {
             //若没有返回状态码，则状态码为0
             state_codes[i] = 0;
+            if(kh_get(s2path, status_path_states, state_codes[i])==kh_end(status_path_states)){
+                kh_put(s2path, status_path_states, state_codes[i], &discard);
+                k=kh_get(s2path, status_path_states, state_codes[i]);
+                kh_val(status_path_states,k)=NULL;
+            }
         } else {
             //state_cur_sequence为从第0到i个消息拿到的所有的状态码序列，所以要取最后一个状态码
             unsigned int *state_cur_sequence = (*extract_response_codes)(response_buf, response_bytes[i],
@@ -1127,31 +1201,55 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             state_codes[i] = state_cur_sequence[state_cur_num - 1];
             ck_free(state_cur_sequence);
         }
+
     }
     //获取路径状态序列
     // 若不存在，新建一个路径状态的id，并在后续更新的时候新建一个路径状态，更新哈希表
     //若存在，则返回该状态id，这一步只获得id，后续再更新
-    unsigned int *path_state_codes=malloc(messages_sent * sizeof (u8));
+    unsigned int *path_state_codes=malloc(messages_sent * sizeof (u32));
     for(i=0;i<messages_sent;i++) {
         unsigned int state_code=state_codes[i];
         u32 Find=0;
         if (kh_get(s2path, status_path_states, state_code) != kh_end(status_path_states)) {
-            khint32_t *value = kh_val(status_path_states, state_code);
-            u32 j = 0;
-            while (value[j]) {
-                path_state_info_t *path_state = kh_val(khms_path_states, value[j]);
-                if (Exist_in_prev_one(path_state, paths[i])) {
-                    Find=1;
-                    path_state_codes[i]=path_state->id;
-                    break;
+            k=kh_get(s2path, status_path_states, state_code);
+            khint32_t *value = kh_val(status_path_states,k);
+            if(value==NULL){
+                printf("path_value值为空！");
+            }
+            else{
+                u32 j=0;
+                while (value[j]) {
+                    if(kh_get(hms,khms_path_states,value[j])== kh_end(khms_path_states)) {
+                        printf("找不到对应的值！");
+                        break;
+                    }
+                    khint32_t l=kh_get(hms,khms_path_states,value[j]);
+                    path_state_info_t *path_state = kh_val(khms_path_states,l);
+                    printf("Value: %d\n", value[j]);
+                    if (Exist_in_prev_one(path_state, paths[i])) {
+                        Find=1;
+                        path_state_codes[i]=path_state->id;
+                        break;
+                    }
+                    j++;
                 }
-                j++;
+
             }
             //新建一个
             if(!Find){
                 unsigned int return_code;
                 path_state_ids_count+=1;
-                kh_put(s2path,status_path_states,path_state_ids_count,&return_code);
+                u32 cur_path_state_count;
+                if(value==NULL){
+                    cur_path_state_count=0;
+                }
+                else cur_path_state_count= path_length(value);
+                value = (u32 *)realloc(value, sizeof(u32) * (cur_path_state_count + 1));
+                value[cur_path_state_count]=path_state_ids_count;
+                cur_path_state_count++;
+                for(int m=0;m<cur_path_state_count;m++){
+                    printf("==value[%d]==%d==",m,value[m]);
+                }
                 path_state_codes[i]=path_state_ids_count;
             }
         }
@@ -1159,10 +1257,10 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
     }
 
     //Update the IPPSM graph，
-    if(messages_sent>1){
-        unsigned int prevPathStateID=path_state_codes[0];
+    if(messages_sent>1) {
+        unsigned int prevPathStateID = path_state_codes[0];
 
-        for(i=1; i < messages_sent; i++) {
+        for (i = 1; i < messages_sent; i++) {
             unsigned int curPathStateID = path_state_codes[i];
             char fromState[STATE_STR_LEN], toState[STATE_STR_LEN];
             snprintf(fromState, STATE_STR_LEN, "%d", prevPathStateID);
@@ -1176,32 +1274,35 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             if (!from) {
                 //Add a node to the graph
                 from = agnode(ippsm, fromState, TRUE);
-                if (dry_run) agset(from,"color","blue");
-                else agset(from,"color","red");
+                if (dry_run) agset(from, "color", "blue");
+                else agset(from, "color", "red");
 
                 //Insert this newly discovered state into the path states hashtable
-                path_state_info_t *newState_From = (path_state_info_t *) ck_alloc(sizeof(state_info_t));
+                path_state_info_t *newState_From = (path_state_info_t *) ck_alloc(sizeof(path_state_info_t));
                 newState_From->id = prevPathStateID;
                 newState_From->R = R_0;
                 newState_From->avg_distance = 0;
                 newState_From->core = paths[i - 1];
                 newState_From->is_covered = 1;
                 newState_From->selected_times = 0;
-                newState_From->fuzzs = 0;
+                newState_From->fuzzs = 1;
                 newState_From->score = 1;
                 newState_From->selected_seed_index = 0;
                 newState_From->seeds = NULL; //seeds是在哪里更新的？
                 newState_From->seeds_count = 0;
+                newState_From->seeds = (void **) ck_realloc(newState_From->seeds, sizeof(void *));
+                newState_From->seeds[0] = (void *) q;
+                newState_From->points_count = 1;
                 newState_From->all_points = (unsigned int **) realloc(newState_From->all_points,
-                                                                      (newState_From->seeds_count + 1) * sizeof(u8 *));
-                newState_From->all_points[newState_From->seeds_count] = paths[i - 1];
-                newState_From->seeds_count++;
+                                                                      (newState_From->points_count) * sizeof(u32 *));
+                newState_From->all_points[newState_From->points_count - 1] = paths[i - 1];
+                newState_From->seeds_count = 1;
 
                 k = kh_put(phms, khms_path_states, prevPathStateID, &discard);
                 kh_value(khms_path_states, k) = newState_From;
 
                 //Insert this into the state_ids array too
-                path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count+1) * sizeof(u32));
+                path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
                 path_ids[path_ids_count++] = prevPathStateID;
 
                 //if (prevPathStateID != 0) expand_was_fuzzed_map(1, 0);
@@ -1211,27 +1312,29 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             if (!to) {
                 //Add a node to the graph
                 to = agnode(ipsm, toState, TRUE);
-                if (dry_run) agset(to,"color","blue");
-                else agset(to,"color","red");
+                if (dry_run) agset(to, "color", "blue");
+                else agset(to, "color", "red");
 
                 //Insert this newly discovered state into the states hashtable
-                path_state_info_t *newState_To = (path_state_info_t *) ck_alloc (sizeof(state_info_t));
+                path_state_info_t *newState_To = (path_state_info_t *) ck_alloc(sizeof(state_info_t));
 
                 newState_To->id = curPathStateID;
-                newState_To->R=R_0;
-                newState_To->avg_distance=0;
-                newState_To->core=paths[i];
+                newState_To->R = R_0;
+                newState_To->avg_distance = 0;
+                newState_To->core = paths[i];
                 newState_To->is_covered = 1;
                 newState_To->selected_times = 0;
-                newState_To->fuzzs = 0;
+                newState_To->fuzzs = 1;
                 newState_To->score = 1;
                 newState_To->selected_seed_index = 0;
                 newState_To->seeds = NULL;
-                newState_To->seeds_count = 0;
+                newState_To->seeds = (void **) ck_realloc(newState_To->seeds, sizeof(void *));
+                newState_To->seeds[0] = (void *) q;
+                newState_To->seeds_count = 1;
 
 
                 newState_To->all_points = (unsigned int **) realloc(newState_To->all_points,
-                                                                      (newState_To->seeds_count + 1) * sizeof(u8 *));
+                                                                    (newState_To->seeds_count + 1) * sizeof(u32 *));
                 newState_To->all_points[newState_To->seeds_count] = paths[i];
                 newState_To->seeds_count++;
 
@@ -1257,6 +1360,51 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             //Update prevStateID
             prevPathStateID = curPathStateID;
         }
+    }else{
+        unsigned int curPathStateID = path_state_codes[0];
+        char fromState[STATE_STR_LEN];
+        snprintf(fromState, STATE_STR_LEN, "%d", curPathStateID);
+
+        //Check if the prevStateID and curStateID have been added to the state machine as vertices
+        //Check also if the edge prevStateID->curStateID has been added
+        Agnode_t *from;
+        from = agnode(ippsm, fromState, FALSE);
+        if (!from) {
+            //Add a node to the graph
+            from = agnode(ippsm, fromState, TRUE);
+            if (dry_run) agset(from, "color", "blue");
+            else agset(from, "color", "red");
+
+            //Insert this newly discovered state into the path states hashtable
+            path_state_info_t *newState_From = (path_state_info_t *) ck_alloc(sizeof(path_state_info_t));
+            newState_From->id = curPathStateID;
+            newState_From->R = R_0;
+            newState_From->avg_distance = 0;
+            newState_From->core = paths[i - 1];//
+            newState_From->is_covered = 1;
+            newState_From->selected_times = 0;
+            newState_From->fuzzs = 1;
+            newState_From->score = 1;
+            newState_From->selected_seed_index = 0;
+            newState_From->seeds = NULL; //seeds是在哪里更新的？
+            newState_From->seeds_count = 0;
+            newState_From->seeds = (void **) ck_realloc(newState_From->seeds, sizeof(void *));
+            newState_From->seeds[0] = (void *) q;
+            newState_From->points_count = 1;
+            newState_From->all_points = (unsigned int **) realloc(newState_From->all_points,
+                                                                  (newState_From->points_count) * sizeof(u32 *));
+            newState_From->all_points[newState_From->points_count - 1] = paths[i - 1];
+            newState_From->seeds_count = 1;
+
+            k = kh_put(phms, khms_path_states, curPathStateID, &discard);
+            kh_value(khms_path_states, k) = newState_From;
+
+            //Insert this into the state_ids array too
+            path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
+            path_ids[path_ids_count++] = curPathStateID;
+
+            //if (prevPathStateID != 0) expand_was_fuzzed_map(1, 0);
+        }
     }
     //Update the dot file
     s32 fd;
@@ -1276,7 +1424,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
     //Update the path states hashtable to keep the list of seeds which help us to reach a specific state
     //Iterate over the regions & their annotated state (sub)sequences and update the hashtable accordingly
     //All seed should "reach" state 0 (initial state) so we add this one to the map first
-    k = kh_get(phms, khms_path_states, 0);
+    /*k = kh_get(phms, khms_path_states, 0);
     if (k != kh_end(khms_path_states)) {
         path_state = kh_val(khms_path_states, k);
         path_state->seeds = (void **) ck_realloc (path_state->seeds, (path_state->seeds_count + 1) * sizeof(void *));
@@ -1284,13 +1432,13 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
         path_state->seeds_count++;
     } else {
         PFATAL("AFLNet - the path states hashtable should always contain an entry of the initial state");
-    }
+    }*/
 
 }
 
-static u32 array_length(u8 *point) {
+static u32 array_length(u32 *point) {
     u32 len = 0;
-    u8 *p = point;
+    u32 *p = point;
     while (*p) {
         p++;
         len++;
@@ -1344,7 +1492,7 @@ int send_over_network()
   //Set timeout for socket data sending/receiving -- otherwise it causes a big delay
   //if the server is still alive after processing all the requests
   struct timeval timeout;
-  timeout.tv_sec = 0;
+  timeout.tv_sec = 1000000000;//my change 1000
   timeout.tv_usec = socket_timeout_usecs;
   setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
 
@@ -1375,10 +1523,10 @@ int send_over_network()
       if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == 0) break;
       usleep(1000);
     }
-    if (n== 1000) {
+    /*if (n== 1000) {
       close(sockfd);
       return 1;
-    }
+    }*/
   }
 
   //retrieve early server response if needed
@@ -1387,7 +1535,6 @@ int send_over_network()
   //write the request messages
   kliter_t(lms) *it;
   messages_sent = 0;
-  u32 lastMessageLength = 0;
   for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
     n = net_send(sockfd, timeout, kl_val(it)->mdata, kl_val(it)->msize);
     messages_sent++;
@@ -1398,10 +1545,9 @@ int send_over_network()
 
 
     if (messages_sent > 0 && path_bytes != NULL) {
-          path_bytes[messages_sent - 1] = array_length(path_bits) - lastMessageLength;
-          printf("========index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
+          path_bytes[messages_sent - 1] = array_length(path_bits);
+          printf("index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
           printf("path====%s\n",path_bits);
-          lastMessageLength = array_length(path_bits);
     }
     //Jump out if something wrong leading to incomplete message sent
     if (n != kl_val(it)->msize) {
@@ -3674,7 +3820,7 @@ static u8 run_target(char** argv, u32 timeout) {
 
   tb4 = *(u32*)trace_bits;
   if (path_bits != NULL && path_bits[0] != '\0') {
-      printf("path===============%s======end\n", path_bits);
+      printf("path=====%s===end\n", path_bits);
         //写入文件
       fprintf(path_file, "%s\n", path_bits);
       fflush(path_file);
@@ -5847,7 +5993,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
   //Update fuzz count, no matter whether the generated test is interesting or not
   if (state_aware_mode) {
       update_fuzzs();
-      update_path_state_fuzzs();
+      //update_path_state_fuzzs();
   }
 
   if (stop_soon) return 1;
@@ -9655,6 +9801,20 @@ int main(int argc, char** argv) {
         }
 
         selected_seed = choose_seed(target_state_id, seed_selection_algo);
+
+        //selected_seed = choose_seed(target_state_id, seed_selection_algo);
+        //my change,选择路径状态，并从选定的路径状态中选择种子
+        if(state_selection_algo==FAVOR && state_cycles >= 5){
+            target_state_id= update_scores_and_select_next_path_state(state_selection_algo);
+
+            /* Update number of times a state has been selected for targeted fuzzing */
+            khint_t kp = kh_get(hms, khms_path_states, target_state_id);
+            if (kp != kh_end(khms_states)) {
+                kh_val(khms_states, kp)->selected_times++;
+            }
+
+            selected_seed = choose_path_seed(target_state_id, seed_selection_algo);
+        }
       }
 
       /* Seek to the selected seed */

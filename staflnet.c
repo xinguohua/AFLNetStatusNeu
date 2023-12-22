@@ -5,33 +5,78 @@
 #include "aflnet.h"
 
 #define MIN3(a,b,c) ((a)<(b)?((a)<(c)?(a):(c)):((b)<(c)?(b):(c)))
+#define MAX(a,b) ((a)<(b)?(b):(a))
 
 
 
 //从path_bits中提取路径状态序列
-u8 **extract_paths(u8 *path_bits, u32 *path_bytes, u32 path_count) {
-    u8 **paths = NULL;
+/*u32 **extract_paths(u32 *path_bits, u32 *path_bytes, u32 path_count) {
+    u32 **paths = malloc(path_count * sizeof(u32 *));  // 一次性分配足够的内存
+
     u32 index = 0;
 
     for (u32 i = 0; i < path_count; i++) {
         if (path_bytes[i]) {
-            u8 *path = malloc(path_bytes[i] * sizeof(u8));
+            u32 *path = malloc(path_bytes[i] * sizeof(u32));
+            memcpy(path, path_bits + index, path_bytes[i] * sizeof(u32));  // 使用 memcpy 进行内存拷贝
 
-            for (u32 j = 0; j < path_bytes[i]; j++) {
-                path[j] = path_bits[j + index];
-            }
-
-            paths = realloc(paths, (i + 1) * sizeof(u8 *));
             paths[i] = path;
 
             index += path_bytes[i];
+        } else {
+            paths[i] = NULL;  // 处理字节为 0 的情况，将路径设置为 NULL
         }
     }
+    return paths;
+}*/
+u32 **extract_paths(u32 *path_bits, u32 *path_bytes, u32 path_count) {
+    u32 **paths = malloc(path_count * sizeof(u32 *));
+    if (paths == NULL) {
+        // 内存分配失败，进行错误处理
+        // 返回适当的错误状态或采取其他适当的操作
+        return NULL;
+    }
 
+    for (u32 i = 0; i < path_count; i++) {
+        if(i==0){
+            if(path_bytes[i]){
+                u32 *path = malloc(path_bytes[i] * sizeof(u32));
+                if (path == NULL) {
+                    // 内存分配失败，进行错误处理
+                    // 释放已经分配的内存，返回适当的错误状态或采取其他适当的操作
+                    for (u32 j = 0; j < path_count; j++) {
+                        free(paths[j]);
+                    }
+                    free(paths);
+                    return NULL;
+                }
+                memcpy(path, path_bits, path_bytes[i] * sizeof(u32));
+                paths[i] = path;
+            }
+        }
+        else if (path_bytes[i] && (path_bytes[i]-path_bytes[i-1])>0 ) {
+            u32 *path = malloc((path_bytes[i]-path_bytes[i-1]) * sizeof(u32));
+            if (path == NULL) {
+                // 内存分配失败，进行错误处理
+                // 释放已经分配的内存，返回适当的错误状态或采取其他适当的操作
+                for (u32 j = 0; j < path_count; j++) {
+                    free(paths[j]);
+                }
+                free(paths);
+                return NULL;
+            }
+
+            memcpy(path, path_bits + path_bytes[i-1], (path_bytes[i]-path_bytes[i-1]) * sizeof(u32));
+            paths[i] = path;
+        } else {
+            paths[i] = NULL;
+        }
+    }
     return paths;
 }
+
 // 释放动态分配的内存
-void free_paths(u8 **paths, u32 path_count) {
+void free_paths(u32 **paths, u32 path_count) {
     for (u32 i = 0; i < path_count; i++) {
         free(paths[i]);
     }
@@ -40,9 +85,9 @@ void free_paths(u8 **paths, u32 path_count) {
 
 
 //获取unsigned int *的长度
-u32 path_length(u8 *point) {
+u32 path_length(u32 *point) {
     u32 len = 0;
-    u8 *p = point;
+    u32 *p = point;
     while (*p) {
         printf("path[%u]: %c\n", len, *p);
         p++;
@@ -53,7 +98,7 @@ u32 path_length(u8 *point) {
 
 
 //获取两个整数数组之间的编辑距离
-extern u32 Levenshtein_distance(u8 *point1, u8 *point2) {
+extern u32 Levenshtein_distance(u32 *point1, u32 *point2) {
     u32 len1 = path_length(point1);
     u32 len2 = path_length(point2);
     u32 res=0;
@@ -79,28 +124,52 @@ extern u32 Levenshtein_distance(u8 *point1, u8 *point2) {
     return res;
 }
 
-extern int Exist_in_prev_one(path_state_info_t *path_state, u8 *new_path){
+extern int Exist_in_prev_one(path_state_info_t *path_state, u32 *new_path){
     u32 j=0;
     int isExist=0;
     //if(path_state->R == new_path) isExist=1;
     int distance= Levenshtein_distance(path_state->core,new_path);
 
-    if(distance)
     if(distance<=path_state->R){
         isExist=1;
     }
     //将新的路径聚类至当前状态
     //更新该状态的各个变量
-
-
-
+    if(isExist){
+        //更新变量
+        path_state->points_count++;
+        path_state->is_covered++;
+        path_state->seeds_count++;
+        path_state->fuzzs++;
+        //重新计算质心
+        u32 i=0;
+        u32 sum=0;
+        u32 max_dis=0;
+        while(path_state->all_points[i]){
+            u32 dis=Levenshtein_distance(path_state->all_points[i],new_path);
+            max_dis= MAX(dis,max_dis);
+            sum+=dis;
+            i++;
+        }
+        u32 avg_new=sum/i;
+        if(avg_new<path_state->avg_distance){
+            path_state->core= new_path;
+            path_state->R=max_dis;
+            path_state->avg_distance=avg_new;
+        }
+        else{
+            path_state->all_points = (unsigned int **) realloc(path_state->all_points,
+                                                                  (path_state->points_count) * sizeof(u32 *));
+            path_state->all_points[path_state->points_count-1] = new_path;
+        }
+    }
     //返回是否聚类至当前状态
     return isExist;
 }
 
-extern int GetPathStateIdInPrev(state_info_t *state,u8 *ToFindPath){
+/*extern int GetPathStateIdInPrev(state_info_t *state,u32 *ToFindPath){
 
-}
+}*/
 
 /*
 void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run) //这个函数应该放在afl-fuzz.c中，因为queue_entry在其中定义
@@ -120,3 +189,19 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run) //这�
 
 
 }*/
+
+void print_hash_table(khash_t(s2path) *hash_table) {
+    khint_t k;
+    for (k = kh_begin(hash_table); k != kh_end(hash_table); ++k) {
+        if (kh_exist(hash_table, k)) {
+            khint32_t key = kh_key(hash_table, k);
+            khint32_t *value = kh_value(hash_table, k);
+            printf("Key: %d\n", key);
+            printf("Value: ");
+            for (int i = 0; value[i]; ++i) {
+                printf("%d ", value[i]);
+            }
+            printf("\n");
+        }
+    }
+}

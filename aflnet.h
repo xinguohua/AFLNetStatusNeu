@@ -13,7 +13,7 @@ typedef struct {
   unsigned int *state_sequence;   /* The annotation keeping the state feedback. */
   unsigned int state_count;       /* Number of states stored in state_sequence. */
   u32 path_id;                    /*路径状态编号*/
-  u8 *path_sequence;              /*该region经过的基本块编号序列*/
+  u32 *path_sequence;              /*该region经过的基本块编号序列*/
   u32 path_block_count;           /*基本块编号序列的基本块个数*/
 } region_t;
 
