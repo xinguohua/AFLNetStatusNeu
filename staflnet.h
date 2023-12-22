@@ -26,10 +26,10 @@ typedef struct {
     u32 fuzzs;                  /* Total number of fuzzs (i.e., inputs generated) */
     u32 score;                  /* current score of the state */
     u32 selected_seed_index;    /* the recently selected seed index */
-    void **seeds;               /* keeps all seeds reaching this state -- can be casted to struct queue_entry* */
+    struct queue_entry **seeds;               /* keeps all seeds reaching this state -- can be casted to struct queue_entry* */
     u32 seeds_count;            /* total number of seeds, it must be equal the size of the seeds array */
     u32 points_count;           /*记录点的总数*/
-    unsigned int **all_points;  /*记录当前路径状态中的所有核心点*/
+    u32 **all_points;  /*记录当前路径状态中的所有核心点*/
 } path_state_info_t;
 
 //初始化一个哈希表，key为int型，value为path_state_info_t类型

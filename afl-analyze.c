@@ -57,9 +57,9 @@
 static s32 child_pid;                 /* PID of the tested program         */
 
 static u8* trace_bits;                /* SHM with instrumentation bitmap   */
-static u8* path_bits;                /* SHM with instrumentation bitmap   */
+static u32* path_bits;                /* SHM with instrumentation bitmap   */
 
-static u8 *in_file,                   /* Analyzer input test case          */
+static u32 *in_file,                   /* Analyzer input test case          */
           *prog_in,                   /* Targeted program input file       */
           *target_path,               /* Path to target binary             */
           *doc_path;                  /* Path to docs                      */

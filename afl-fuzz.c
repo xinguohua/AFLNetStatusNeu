@@ -1289,21 +1289,21 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                 newState_From->score = 1;
                 newState_From->selected_seed_index = 0;
                 newState_From->seeds = NULL; //seeds是在哪里更新的？
-                newState_From->seeds_count = 0;
-                newState_From->seeds = (void **) ck_realloc(newState_From->seeds, sizeof(void *));
-                newState_From->seeds[0] = (void *) q;
-                newState_From->points_count = 1;
-                newState_From->all_points = (unsigned int **) realloc(newState_From->all_points,
-                                                                      (newState_From->points_count) * sizeof(u32 *));
-                newState_From->all_points[newState_From->points_count - 1] = paths[i - 1];
                 newState_From->seeds_count = 1;
+                struct queue_entry **new_space0 = (struct queue_entry**) malloc(newState_From->seeds_count * sizeof(struct queue_entry*));
+                newState_From->seeds = new_space0;
+                newState_From->seeds[0] = q;
+                newState_From->points_count = 1;
+                u32 **new_space = (unsigned int **) malloc((newState_From->points_count) * sizeof(u32 *));
+                newState_From->all_points = new_space;
+                newState_From->all_points[0] = paths[i - 1];
 
                 k = kh_put(phms, khms_path_states, prevPathStateID, &discard);
                 kh_value(khms_path_states, k) = newState_From;
 
                 //Insert this into the state_ids array too
-                path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
-                path_ids[path_ids_count++] = prevPathStateID;
+                //path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
+                //path_ids[path_ids_count++] = prevPathStateID;
 
                 //if (prevPathStateID != 0) expand_was_fuzzed_map(1, 0);
             }
@@ -1311,7 +1311,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             to = agnode(ippsm, toState, FALSE);
             if (!to) {
                 //Add a node to the graph
-                to = agnode(ipsm, toState, TRUE);
+                to = agnode(ippsm, toState, TRUE);
                 if (dry_run) agset(to, "color", "blue");
                 else agset(to, "color", "red");
 
@@ -1328,22 +1328,24 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                 newState_To->score = 1;
                 newState_To->selected_seed_index = 0;
                 newState_To->seeds = NULL;
-                newState_To->seeds = (void **) ck_realloc(newState_To->seeds, sizeof(void *));
-                newState_To->seeds[0] = (void *) q;
                 newState_To->seeds_count = 1;
+                struct queue_entry **new_space0 = (struct queue_entry**) malloc(newState_To->seeds_count * sizeof(struct queue_entry*));
+                newState_To->seeds = new_space0;
+                newState_To->seeds[0] = q;
 
+                newState_To->points_count=1;
 
-                newState_To->all_points = (unsigned int **) realloc(newState_To->all_points,
-                                                                    (newState_To->seeds_count + 1) * sizeof(u32 *));
-                newState_To->all_points[newState_To->seeds_count] = paths[i];
-                newState_To->seeds_count++;
+                u32 **new_space = (unsigned int **) malloc((newState_To->points_count) * sizeof(u32 *));
+                newState_To->all_points = new_space;
+                newState_To->all_points[0] = paths[i];
+                //newState_To->seeds_count++;
 
                 k = kh_put(phms, khms_path_states, curPathStateID, &discard);
                 kh_value(khms_path_states, k) = newState_To;
 
                 //Insert this into the state_ids array too
-                path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
-                path_ids[path_ids_count++] = curPathStateID;
+                //path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
+                //path_ids[path_ids_count++] = curPathStateID;
 
                 //if (curStateID != 0) expand_was_fuzzed_map(1, 0);
             }
@@ -1400,8 +1402,8 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             kh_value(khms_path_states, k) = newState_From;
 
             //Insert this into the state_ids array too
-            path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
-            path_ids[path_ids_count++] = curPathStateID;
+            //path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
+            //path_ids[path_ids_count++] = curPathStateID;
 
             //if (prevPathStateID != 0) expand_was_fuzzed_map(1, 0);
         }
@@ -5243,6 +5245,10 @@ static void maybe_delete_out_dir(void) {
   fn = alloc_printf("%s/ipsm.dot", out_dir);
   if (unlink(fn) && errno != ENOENT) goto dir_cleanup_failed;
   ck_free(fn);
+
+    fn = alloc_printf("%s/ippsm.dot", out_dir);
+    if (unlink(fn) && errno != ENOENT) goto dir_cleanup_failed;
+    ck_free(fn);
 
   /* Delete the old replayable-new-ipsm-paths folder */
   fn = alloc_printf("%s/replayable-new-ipsm-paths", out_dir);
