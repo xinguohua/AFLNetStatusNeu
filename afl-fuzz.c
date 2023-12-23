@@ -1258,6 +1258,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             }
         }
         q->regions->path_id=path_state_codes[i];
+        free(paths);
     }
 
     //Update the IPPSM graph，
@@ -3672,7 +3673,7 @@ static u8 run_target(char** argv, u32 timeout) {
      territory. */
 
   memset(trace_bits, 0, MAP_SIZE);
-  memset(path_bits, 0, MAP_SIZE); //clear
+  memset(path_bits, 0, MAP_SIZE); //clea
   MEM_BARRIER();
 
   /* If we're running in "dumb" mode, we can't rely on the fork server
