@@ -419,7 +419,9 @@ khash_t(hs32) *khs_ipsm_paths;
 khash_t(hms) *khms_states;
 //my change
 khash_t(phs32) *khs_ippsm_paths;
+// 路径状态id 对路径状态信息
 khash_t(phms) *khms_path_states;
+// 相应状态对路径状态ids
 khash_t(s2path) *status_path_states;
 
 
@@ -1178,7 +1180,6 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
     if(!path_bytes) return;
 
     unsigned int state_count, i, discard;
-    //unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
 
     u32 **paths = extract_paths(path_bits, path_bytes, messages_sent);
     u32 state_cur_num=0;
@@ -1189,11 +1190,6 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
         if ((response_bytes[i] == 0) || (i > 0 && (response_bytes[i] - response_bytes[i - 1] == 0))) {
             //若没有返回状态码，则状态码为0
             state_codes[i] = 0;
-            if(kh_get(s2path, status_path_states, state_codes[i])==kh_end(status_path_states)){
-                kh_put(s2path, status_path_states, state_codes[i], &discard);
-                k=kh_get(s2path, status_path_states, state_codes[i]);
-                kh_val(status_path_states,k)=NULL;
-            }
         } else {
             //state_cur_sequence为从第0到i个消息拿到的所有的状态码序列，所以要取最后一个状态码
             unsigned int *state_cur_sequence = (*extract_response_codes)(response_buf, response_bytes[i],
@@ -1201,12 +1197,17 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             state_codes[i] = state_cur_sequence[state_cur_num - 1];
             ck_free(state_cur_sequence);
         }
-
+        // status_path_states 状态对路径状态s
+        if(kh_get(s2path, status_path_states, state_codes[i])==kh_end(status_path_states)){
+            kh_put(s2path, status_path_states, state_codes[i], &discard);
+            k=kh_get(s2path, status_path_states, state_codes[i]);
+            kh_val(status_path_states,k)=NULL;
+        }
     }
     //获取路径状态序列
-    // 若不存在，新建一个路径状态的id，并在后续更新的时候新建一个路径状态，更新哈希表
+    //若不存在，新建一个路径状态的id，并在后续更新的时候新建一个路径状态，更新哈希表
     //若存在，则返回该状态id，这一步只获得id，后续再更新
-    unsigned int *path_state_codes=malloc(messages_sent * sizeof (u32));
+    u32 *path_state_codes=malloc(messages_sent * sizeof (u32));
     for(i=0;i<messages_sent;i++) {
         unsigned int state_code=state_codes[i];
         u32 Find=0;
@@ -1214,41 +1215,47 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             k=kh_get(s2path, status_path_states, state_code);
             khint32_t *value = kh_val(status_path_states,k);
             if(value==NULL){
-                printf("path_value值为空！");
-            }
-            else{
+                printf("path_value值为空！\n");
+            }else{
                 u32 j=0;
+                // 路径状态id
                 while (value[j]) {
-                    if(kh_get(hms,khms_path_states,value[j])== kh_end(khms_path_states)) {
+                    // khms_path_states 路径状态ID 路径状态info
+                    if(kh_get(phms,khms_path_states,value[j])== kh_end(khms_path_states)) {
                         printf("找不到对应的值！");
                         break;
                     }
-                    khint32_t l=kh_get(hms,khms_path_states,value[j]);
-                    path_state_info_t *path_state = kh_val(khms_path_states,l);
+                    khint32_t l=kh_get(phms,khms_path_states,value[j]);
+                    path_state_info_t *path_state_info = kh_val(khms_path_states,l);
                     printf("Value: %d\n", value[j]);
-                    if (Exist_in_prev_one(path_state, paths[i])) {
+                    if (exist_in_prev_one(path_state_info, paths[i])) {
                         Find=1;
-                        path_state_codes[i]=path_state->id;
+                        path_state_codes[i]=path_state_info->id;
                         break;
                     }
                     j++;
                 }
-
             }
             //新建一个
             if(!Find){
-                unsigned int return_code;
                 path_state_ids_count+=1;
+                khint32_t* temp;
                 u32 cur_path_state_count;
                 if(value==NULL){
                     cur_path_state_count=0;
+                }else {
+                    temp = malloc(sizeof(khint32_t) * (cur_path_state_count + 1));
+                    cur_path_state_count= path_length(value);
+                    for (int t = 0; t < cur_path_state_count; t++) {
+                        temp[t] = value[t];
+                    }
                 }
-                else cur_path_state_count= path_length(value);
-                value = (u32 *)realloc(value, sizeof(u32) * (cur_path_state_count + 1));
-                value[cur_path_state_count]=path_state_ids_count;
+                temp[cur_path_state_count]=path_state_ids_count;
+                free(value);
+                value = temp;
                 cur_path_state_count++;
                 for(int m=0;m<cur_path_state_count;m++){
-                    printf("==value[%d]==%d==",m,value[m]);
+                    printf("==value[%d]==%d==\n",m,value[m]);
                 }
                 path_state_codes[i]=path_state_ids_count;
             }
@@ -1261,10 +1268,12 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
         unsigned int prevPathStateID = path_state_codes[0];
 
         for (i = 1; i < messages_sent; i++) {
+            printf("==messages_sent:%d==\n",i);
             unsigned int curPathStateID = path_state_codes[i];
             char fromState[STATE_STR_LEN], toState[STATE_STR_LEN];
             snprintf(fromState, STATE_STR_LEN, "%d", prevPathStateID);
             snprintf(toState, STATE_STR_LEN, "%d", curPathStateID);
+
 
             //Check if the prevStateID and curStateID have been added to the state machine as vertices
             //Check also if the edge prevStateID->curStateID has been added
@@ -1294,11 +1303,15 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                 newState_From->seeds = new_space0;
                 newState_From->seeds[0] = q;
                 newState_From->points_count = 1;
-                u32 **new_space = (unsigned int **) malloc((newState_From->points_count) * sizeof(u32 *));
+                u32 **new_space = (u32 **) malloc((newState_From->points_count) * sizeof(u32 *));
                 newState_From->all_points = new_space;
-                newState_From->all_points[0] = paths[i - 1];
+                //newState_From->all_points[0] = paths[i - 1];
+
+                print_hash_table_phms(khms_path_states);
 
                 k = kh_put(phms, khms_path_states, prevPathStateID, &discard);
+
+
                 kh_value(khms_path_states, k) = newState_From;
 
                 //Insert this into the state_ids array too
@@ -1308,9 +1321,11 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                 //if (prevPathStateID != 0) expand_was_fuzzed_map(1, 0);
             }
 
+
             to = agnode(ippsm, toState, FALSE);
             if (!to) {
                 //Add a node to the graph
+            //    to = agnode(ippsm, "55", TRUE);
                 to = agnode(ippsm, toState, TRUE);
                 if (dry_run) agset(to, "color", "blue");
                 else agset(to, "color", "red");
@@ -1335,13 +1350,14 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
 
                 newState_To->points_count=1;
 
-                u32 **new_space = (unsigned int **) malloc((newState_To->points_count) * sizeof(u32 *));
+                u32 **new_space = (u32 **) malloc((newState_To->points_count) * sizeof(u32 *));
                 newState_To->all_points = new_space;
-                newState_To->all_points[0] = paths[i];
+                //newState_To->all_points[0] = paths[i];
                 //newState_To->seeds_count++;
 
                 k = kh_put(phms, khms_path_states, curPathStateID, &discard);
                 kh_value(khms_path_states, k) = newState_To;
+                //print_hash_table_phms(khms_path_states);
 
                 //Insert this into the state_ids array too
                 //path_ids = (u32 *) ck_realloc(state_ids, (path_ids_count + 1) * sizeof(u32));
@@ -1398,6 +1414,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             newState_From->all_points[newState_From->points_count - 1] = paths[i - 1];
             newState_From->seeds_count = 1;
 
+            print_hash_table_phms(khms_path_states);
             k = kh_put(phms, khms_path_states, curPathStateID, &discard);
             kh_value(khms_path_states, k) = newState_From;
 
@@ -1421,7 +1438,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
         close(fileno(ippsm_dot_file));
         ck_free(tmp);
     }
-
+//===end
     //update_region_annotations(q);
     //Update the path states hashtable to keep the list of seeds which help us to reach a specific state
     //Iterate over the regions & their annotated state (sub)sequences and update the hashtable accordingly
@@ -1445,7 +1462,6 @@ static u32 array_length(u32 *point) {
         p++;
         len++;
     }
-    printf("len=========%d\n", len);
     return len;
 }
 
@@ -1548,8 +1564,8 @@ int send_over_network()
 
     if (messages_sent > 0 && path_bytes != NULL) {
           path_bytes[messages_sent - 1] = array_length(path_bits);
-          printf("index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
-          printf("path====%s\n",path_bits);
+//          printf("index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
+//          printf("path====%s\n",path_bits);
     }
     //Jump out if something wrong leading to incomplete message sent
     if (n != kl_val(it)->msize) {
@@ -3822,7 +3838,7 @@ static u8 run_target(char** argv, u32 timeout) {
 
   tb4 = *(u32*)trace_bits;
   if (path_bits != NULL && path_bits[0] != '\0') {
-      printf("path=====%s===end\n", path_bits);
+     // printf("path=====%s===end\n", path_bits);
         //写入文件
       fprintf(path_file, "%s\n", path_bits);
       fflush(path_file);

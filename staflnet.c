@@ -98,7 +98,7 @@ u32 path_length(u32 *point) {
 
 
 //获取两个整数数组之间的编辑距离
-extern u32 Levenshtein_distance(u32 *point1, u32 *point2) {
+extern u32 levenshtein_distance(u32 *point1, u32 *point2) {
     u32 len1 = path_length(point1);
     u32 len2 = path_length(point2);
     u32 res=0;
@@ -124,11 +124,9 @@ extern u32 Levenshtein_distance(u32 *point1, u32 *point2) {
     return res;
 }
 
-extern int Exist_in_prev_one(path_state_info_t *path_state, u32 *new_path){
-    u32 j=0;
+extern u32 exist_in_prev_one(path_state_info_t *path_state, u32 *new_path){
     int isExist=0;
-    //if(path_state->R == new_path) isExist=1;
-    int distance= Levenshtein_distance(path_state->core,new_path);
+    u32 distance= levenshtein_distance(path_state->core, new_path);
 
     if(distance<=path_state->R){
         isExist=1;
@@ -146,7 +144,7 @@ extern int Exist_in_prev_one(path_state_info_t *path_state, u32 *new_path){
         u32 sum=0;
         u32 max_dis=0;
         while(path_state->all_points[i]){
-            u32 dis=Levenshtein_distance(path_state->all_points[i],new_path);
+            u32 dis= levenshtein_distance(path_state->all_points[i], new_path);
             max_dis= MAX(dis,max_dis);
             sum+=dis;
             i++;
@@ -157,11 +155,13 @@ extern int Exist_in_prev_one(path_state_info_t *path_state, u32 *new_path){
             path_state->R=max_dis;
             path_state->avg_distance=avg_new;
         }
-        else{
-            path_state->all_points = (unsigned int **) realloc(path_state->all_points,
-                                                                  (path_state->points_count) * sizeof(u32 *));
-            path_state->all_points[path_state->points_count-1] = new_path;
+        u32 ** temp = malloc(path_state->points_count * sizeof(u32 *));
+        for (int k = 0; k < path_state->points_count-1; k++) {
+            temp[k] = path_state->all_points[k];
         }
+        temp[path_state->points_count - 1] = new_path;
+        free(path_state->all_points);
+        path_state->all_points = temp;
     }
     //返回是否聚类至当前状态
     return isExist;
@@ -189,6 +189,17 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run) //这�
 
 
 }*/
+void print_hash_table_phms(khash_t(phms) *hash_table) {
+    khint_t k;
+    for (k = kh_begin(hash_table); k != kh_end(hash_table); ++k) {
+        if (kh_exist(hash_table, k)) {
+            khint32_t key = kh_key(hash_table, k);
+            //khint32_t *value = kh_value(hash_table, k);
+            printf("Key: %d\n", key);
+            printf("\n");
+        }
+    }
+}
 
 void print_hash_table(khash_t(s2path) *hash_table) {
     khint_t k;

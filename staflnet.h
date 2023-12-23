@@ -55,9 +55,9 @@ extern u32 **extract_paths(u32 *path_bits, u32 *path_bytes, u32 path_count);
 extern void free_paths(u32 **paths, u32 path_count);
 
 //获取两个整数数组之间的编辑距离
-extern u32 Levenshtein_distance(u32 *point1, u32 *point2);
+extern u32 levenshtein_distance(u32 *point1, u32 *point2);
 
-extern int Exist_in_prev_one(path_state_info_t *path_state, u32 *new_path);
+extern u32 exist_in_prev_one(path_state_info_t *path_state, u32 *new_path);
 
 //extern int GetPathStateIdInPrev(state_info_t *state,u32 *ToFindPath);
 
@@ -65,4 +65,5 @@ extern int Exist_in_prev_one(path_state_info_t *path_state, u32 *new_path);
 void Create_path_state(state_info_t *state,unsigned int *new_path);
 
 void print_hash_table(khash_t(s2path) *hash_table);
+void print_hash_table_phms(khash_t(phms) *hash_table);
 
