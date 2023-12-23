@@ -716,7 +716,7 @@ u32 update_scores_and_select_next_state(u8 mode) {
 }
 
 u32 update_scores_and_select_next_path_state(u8 mode){
-
+    printf("update_scores_and_select_next_path_state");
     u32 next_state_id= update_scores_and_select_next_state(mode);
     u32 *path_state_scores = NULL;
     u32 path_state_num=0;
@@ -739,7 +739,7 @@ u32 update_scores_and_select_next_path_state(u8 mode){
         for(u32 i = 0; i < path_state_num; i++) {
             u32 pstate_id = value[i];
 
-            k = kh_get(hms, khms_path_states, pstate_id);
+            k = kh_get(phms, khms_path_states, pstate_id);
             if (k != kh_end(khms_path_states)) {
                 pstate = kh_val(khms_path_states, k);
                 switch(mode) {
@@ -1245,18 +1245,15 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                     cur_path_state_count=0;
                 }else {
                     cur_path_state_count= path_length(value);
-                    temp = malloc(sizeof(khint32_t) * (cur_path_state_count + 1));
-                    for (int t = 0; t < cur_path_state_count; t++) {
-                        temp[t] = value[t];
-                    }
+                }
+                temp = malloc(sizeof(khint32_t) * (cur_path_state_count + 1));
+                for (int t = 0; t < cur_path_state_count; t++) {
+                    temp[t] = value[t];
                 }
                 temp[cur_path_state_count]=path_state_ids_count;
                 free(value);
                 value = temp;
                 cur_path_state_count++;
-                for(int m=0;m<cur_path_state_count;m++){
-                    printf("==value[%d]==%d==\n",m,value[m]);
-                }
                 path_state_codes[i]=path_state_ids_count;
             }
         }
@@ -4106,7 +4103,7 @@ static void perform_dry_run(char** argv) {
     /* Update state-aware variables (e.g., state machine, regions and their annotations */
     if (state_aware_mode) {
         update_state_aware_variables(q, 1);
-        update_path_state_aware_variables(queue_top,1);
+       update_path_state_aware_variables(queue_top,1);
     }
 
     /* save the seed to file for replaying */
@@ -4543,7 +4540,7 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
     if (state_aware_mode) {
         update_state_aware_variables(queue_top, 0);
-        update_path_state_aware_variables(queue_top,0);
+       update_path_state_aware_variables(queue_top,0);
     }
 
     /* save the seed to file for replaying */
@@ -9830,7 +9827,7 @@ int main(int argc, char** argv) {
             target_state_id= update_scores_and_select_next_path_state(state_selection_algo);
 
             /* Update number of times a state has been selected for targeted fuzzing */
-            khint_t kp = kh_get(hms, khms_path_states, target_state_id);
+            khint_t kp = kh_get(phms, khms_path_states, target_state_id);
             if (kp != kh_end(khms_states)) {
                 kh_val(khms_states, kp)->selected_times++;
             }

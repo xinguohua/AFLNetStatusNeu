@@ -36,41 +36,13 @@ u32 **extract_paths(u32 *path_bits, u32 *path_bytes, u32 path_count) {
         // 返回适当的错误状态或采取其他适当的操作
         return NULL;
     }
-
+    u32 start = 0;
     for (u32 i = 0; i < path_count; i++) {
-        if(i==0){
-            if(path_bytes[i]){
-                u32 *path = malloc(path_bytes[i] * sizeof(u32));
-                if (path == NULL) {
-                    // 内存分配失败，进行错误处理
-                    // 释放已经分配的内存，返回适当的错误状态或采取其他适当的操作
-                    for (u32 j = 0; j < path_count; j++) {
-                        free(paths[j]);
-                    }
-                    free(paths);
-                    return NULL;
-                }
-                memcpy(path, path_bits, path_bytes[i] * sizeof(u32));
-                paths[i] = path;
-            }
-        }
-        else if (path_bytes[i] && (path_bytes[i]-path_bytes[i-1])>0 ) {
-            u32 *path = malloc((path_bytes[i]-path_bytes[i-1]) * sizeof(u32));
-            if (path == NULL) {
-                // 内存分配失败，进行错误处理
-                // 释放已经分配的内存，返回适当的错误状态或采取其他适当的操作
-                for (u32 j = 0; j < path_count; j++) {
-                    free(paths[j]);
-                }
-                free(paths);
-                return NULL;
-            }
-
-            memcpy(path, path_bits + path_bytes[i-1], (path_bytes[i]-path_bytes[i-1]) * sizeof(u32));
-            paths[i] = path;
-        } else {
-            paths[i] = NULL;
-        }
+        u32 *path = malloc(path_bytes[i] * sizeof(u32));
+        // 从 path_bits 的 start 位置复制 path_bytes[i] 个 u32 到 path
+        memcpy(path, path_bits + start*sizeof(u32), path_bytes[i] * sizeof(u32));
+        paths[i] = path;
+        start += path_bytes[i];
     }
     return paths;
 }
