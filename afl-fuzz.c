@@ -1244,8 +1244,8 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                 if(value==NULL){
                     cur_path_state_count=0;
                 }else {
-                    temp = malloc(sizeof(khint32_t) * (cur_path_state_count + 1));
                     cur_path_state_count= path_length(value);
+                    temp = malloc(sizeof(khint32_t) * (cur_path_state_count + 1));
                     for (int t = 0; t < cur_path_state_count; t++) {
                         temp[t] = value[t];
                     }
