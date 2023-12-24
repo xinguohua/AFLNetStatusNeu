@@ -30,20 +30,32 @@
     return paths;
 }*/
 u32 **extract_paths(u32 *path_bits, u32 *path_bytes, u32 path_count) {
+    printf("extract_paths=====path_bits%s\n=======path_coun%dt=end\n", path_bits, path_count);
+    //========check
+    u32 sum = 0;
+    for (u32 t = 0; t <  path_count; t++){
+        printf("===index%d====start%d\n", t, path_bytes[t]);
+    }
+    printf("path_length%d\n", path_length(path_bits));
     u32 **paths = malloc(path_count * sizeof(u32 *));
     if (paths == NULL) {
         // 内存分配失败，进行错误处理
         // 返回适当的错误状态或采取其他适当的操作
         return NULL;
     }
-    u32 start = 0;
-    for (u32 i = 0; i < path_count; i++) {
-        u32 *path = malloc(path_bytes[i] * sizeof(u32));
-        // 从 path_bits 的 start 位置复制 path_bytes[i] 个 u32 到 path
-        memcpy(path, path_bits + start*sizeof(u32), path_bytes[i] * sizeof(u32));
-        paths[i] = path;
-        start += path_bytes[i];
+    if (path_bytes == NULL){
+        return NULL;
     }
+    for (u32 i = 0; i < path_count-1; i++) {
+        u32 start = path_bytes[i] * sizeof(u32);
+        u32 len =  path_bytes[i+1] -path_bytes[i];
+        u32 *path = malloc(len * sizeof(u32));
+        memcpy(path, path_bits + start, len);
+        paths[i] = path;
+    }
+    int lastLen = path_length(path_bits) - path_bytes[path_count -1]+1;
+    u32 *lastPath = malloc(lastLen * sizeof(u32));
+    paths[path_count -1] = lastPath;
     return paths;
 }
 
@@ -61,7 +73,7 @@ u32 path_length(u32 *point) {
     u32 len = 0;
     u32 *p = point;
     while (*p) {
-        printf("path[%u]: %c\n", len, *p);
+        //printf("path[%u]: %c\n", len, *p);
         p++;
         len++;
     }

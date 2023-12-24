@@ -1265,7 +1265,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
         unsigned int prevPathStateID = path_state_codes[0];
 
         for (i = 1; i < messages_sent; i++) {
-            printf("==messages_sent:%d==\n",i);
+            //printf("==messages_sent:%d==\n",i);
             unsigned int curPathStateID = path_state_codes[i];
             char fromState[STATE_STR_LEN], toState[STATE_STR_LEN];
             snprintf(fromState, STATE_STR_LEN, "%d", prevPathStateID);
@@ -1304,7 +1304,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                 newState_From->all_points = new_space;
                 //newState_From->all_points[0] = paths[i - 1];
 
-                print_hash_table_phms(khms_path_states);
+                //print_hash_table_phms(khms_path_states);
 
                 k = kh_put(phms, khms_path_states, prevPathStateID, &discard);
 
@@ -1492,7 +1492,8 @@ int send_over_network()
       ck_free(path_bytes);
       path_bytes = NULL;
   }
-
+  // 这次网络请求路径从哪里开始计算
+  u32 start = array_length(path_bits);
   //Create a TCP/UDP socket
   int sockfd = -1;
   if (net_protocol == PRO_TCP)
@@ -1560,8 +1561,9 @@ int send_over_network()
 
 
     if (messages_sent > 0 && path_bytes != NULL) {
-          path_bytes[messages_sent - 1] = array_length(path_bits);
-//          printf("index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
+          path_bytes[messages_sent - 1] = start;
+          start =    array_length(path_bits);
+          printf("sent===index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
 //          printf("path====%s\n",path_bits);
     }
     //Jump out if something wrong leading to incomplete message sent
@@ -9800,7 +9802,7 @@ int main(int argc, char** argv) {
   if (state_aware_mode) {
 
     if (state_ids_count == 0) {
-     // PFATAL("No server states have been detected. Server responses are likely empty!");
+     PFATAL("No server states have been detected. Server responses are likely empty!");
     }
 
     while (1) {
