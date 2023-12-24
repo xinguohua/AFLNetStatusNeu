@@ -1258,7 +1258,6 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
             }
         }
         q->regions->path_id=path_state_codes[i];
-        free(paths);
     }
 
     //Update the IPPSM graph，
@@ -1329,7 +1328,7 @@ void update_path_state_aware_variables(struct queue_entry *q, u8 dry_run){
                 else agset(to, "color", "red");
 
                 //Insert this newly discovered state into the states hashtable
-                path_state_info_t *newState_To = (path_state_info_t *) ck_alloc(sizeof(state_info_t));
+                path_state_info_t *newState_To = (path_state_info_t *) ck_alloc(sizeof(path_state_info_t));
 
                 newState_To->id = curPathStateID;
                 newState_To->R = R_0;

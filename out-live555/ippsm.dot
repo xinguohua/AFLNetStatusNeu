@@ -8,4 +8,11 @@ digraph "path-g" {
 	3	[color=blue];
 	2 -> 3	[key=new_edge,
 		color=blue];
+	4	[color=blue];
+	5	[color=blue];
+	4 -> 5	[key=new_edge,
+		color=blue];
+	6	[color=blue];
+	5 -> 6	[key=new_edge,
+		color=blue];
 }
