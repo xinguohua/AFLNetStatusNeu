@@ -1563,7 +1563,7 @@ int send_over_network()
     if (messages_sent > 0 && path_bytes != NULL) {
           path_bytes[messages_sent - 1] = start;
           start =    array_length(path_bits);
-          printf("sent===index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
+     //     printf("sent===index%d===%d===\n", messages_sent - 1, path_bytes[messages_sent - 1]);
 //          printf("path====%s\n",path_bits);
     }
     //Jump out if something wrong leading to incomplete message sent

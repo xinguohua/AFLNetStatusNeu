@@ -32,11 +32,11 @@
 u32 **extract_paths(u32 *path_bits, u32 *path_bytes, u32 path_count) {
     printf("extract_paths=====path_bits%s\n=======path_coun%dt=end\n", path_bits, path_count);
     //========check
-    u32 sum = 0;
-    for (u32 t = 0; t <  path_count; t++){
-        printf("===index%d====start%d\n", t, path_bytes[t]);
-    }
-    printf("path_length%d\n", path_length(path_bits));
+//    u32 sum = 0;
+//    for (u32 t = 0; t <  path_count; t++){
+//        printf("===index%d====start%d\n", t, path_bytes[t]);
+//    }
+//    printf("path_length%d\n", path_length(path_bits));
     u32 **paths = malloc(path_count * sizeof(u32 *));
     if (paths == NULL) {
         // 内存分配失败，进行错误处理
