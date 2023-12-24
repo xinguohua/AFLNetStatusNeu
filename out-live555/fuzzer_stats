@@ -1,6 +1,6 @@
-start_time        : 1703391003
-last_update       : 1703391007
-fuzzer_pid        : 32086
+start_time        : 1703394754
+last_update       : 1703394758
+fuzzer_pid        : 50701
 cycles_done       : 0
 execs_done        : 120
 execs_per_sec     : 0.00
@@ -12,7 +12,7 @@ max_depth         : 1
 cur_path          : 0
 pending_favs      : 0
 pending_total     : 7
-variable_paths    : 5
+variable_paths    : 7
 stability         : 0.00%
 bitmap_cvg        : 0.00%
 unique_crashes    : 0

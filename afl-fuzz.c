@@ -4106,7 +4106,7 @@ static void perform_dry_run(char** argv) {
     /* Update state-aware variables (e.g., state machine, regions and their annotations */
     if (state_aware_mode) {
         update_state_aware_variables(q, 1);
-       update_path_state_aware_variables(queue_top,1);
+       update_path_state_aware_variables(q,1);
     }
 
     /* save the seed to file for replaying */
