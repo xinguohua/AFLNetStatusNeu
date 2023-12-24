@@ -1,8 +1,8 @@
-start_time        : 1703389457
-last_update       : 1703389460
-fuzzer_pid        : 20256
+start_time        : 1703391003
+last_update       : 1703391007
+fuzzer_pid        : 32086
 cycles_done       : 0
-execs_done        : 88
+execs_done        : 120
 execs_per_sec     : 0.00
 paths_total       : 7
 paths_favored     : 1
@@ -12,7 +12,7 @@ max_depth         : 1
 cur_path          : 0
 pending_favs      : 0
 pending_total     : 7
-variable_paths    : 7
+variable_paths    : 5
 stability         : 0.00%
 bitmap_cvg        : 0.00%
 unique_crashes    : 0
@@ -20,7 +20,7 @@ unique_hangs      : 0
 last_path         : 0
 last_crash        : 0
 last_hang         : 0
-execs_since_crash : 88
+execs_since_crash : 120
 exec_timeout      : 100
 afl_banner        : testOnDemandRTSPServer
 afl_version       : 2.56b
