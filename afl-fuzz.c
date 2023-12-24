@@ -954,8 +954,9 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
   int discard, i;
   state_info_t *state;
   unsigned int state_count;
-
+  printf("update_state_aware_variables\n");
   if (!response_buf_size || !response_bytes) return;
+  printf("state_aware real enter\n");
 
   unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
 
